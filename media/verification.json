@@ -1,7 +1,89 @@
 {
-  "testedAt": "2026-10-16T06:34:52.255Z",
+  "testedAt": "2026-10-16T07:09:20.580Z",
   "paymentMode": "simulated",
-  "aiMode": "demo",
+  "aiMode": "live",
+  "quoteMode": "live",
+  "liveUsage": [
+    {
+      "step": "quote",
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 101,
+        "total_tokens": 142,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": null,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 101
+      }
+    },
+    {
+      "step": "content",
+      "attempt": 1,
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "usage": {
+        "completion_tokens": 837,
+        "prompt_tokens": 599,
+        "total_tokens": 1436,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": null,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 599
+      }
+    },
+    {
+      "step": "content",
+      "attempt": 2,
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "usage": {
+        "completion_tokens": 684,
+        "prompt_tokens": 617,
+        "total_tokens": 1301,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": null,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 617
+      }
+    },
+    {
+      "step": "quote",
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 101,
+        "total_tokens": 142,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": null,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 101
+      }
+    }
+  ],
+  "productionUrl": "https://paid-agent-studio.vercel.app",
+  "desktopViewport": {
+    "width": 1920,
+    "height": 1080
+  },
   "passed": true,
   "checks": [
     "visible quote/checkout/generate/download/refund UI flow",
@@ -14,30 +96,5 @@
     "cross-origin rejection",
     "mobile overflow",
     "no page errors"
-  ],
-  "baseUrl": "http://127.0.0.1:3187",
-  "hostedVerification": {
-    "testedAt": "2026-10-16T06:36:31.301Z",
-    "paymentMode": "simulated",
-    "aiMode": "demo",
-    "passed": true,
-    "checks": [
-      "visible quote/checkout/generate/download/refund UI flow",
-      "server pricing ignores client amount",
-      "capture to QC to delivery",
-      "Markdown + JSON export",
-      "two failed QC attempts trigger refund",
-      "refund replay idempotency",
-      "session isolation",
-      "cross-origin rejection",
-      "mobile overflow",
-      "no page errors"
-    ],
-    "baseUrl": "https://paid-agent-studio.vercel.app"
-  },
-  "capture": {
-    "desktop": "1920x1080",
-    "mobileWidth": 390,
-    "videoSeconds": 17.24
-  }
+  ]
 }
