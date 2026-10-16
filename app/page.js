@@ -401,6 +401,7 @@ export default function Home() {
   const [orders, setOrders] = useState([]);
   const [order, setOrder] = useState(null);
   const [productName, setProductName] = useState("Forma everyday tote");
+  const [language, setLanguage] = useState("English");
   const [facts, setFacts] = useState(FACTS);
   const [packageId, setPackageId] = useState("launch");
   const [guarantee, setGuarantee] = useState(false);
@@ -458,6 +459,7 @@ export default function Home() {
         method: "POST",
         body: JSON.stringify({
           productName,
+          language,
           facts,
           packageId,
           scenario: guarantee ? "guarantee" : "standard",
@@ -693,6 +695,7 @@ export default function Home() {
                       placeholder="Materials, features, dimensions, care instructions…"
                     />
                     <div className="field-note">
+                      <label>Copy language <select value={language} onChange={e => setLanguage(e.target.value)}><option>English</option><option>Korean</option></select></label>
                       <Icon name="shield" size={14} /> Your facts are the source
                       of truth. We don’t invent product claims.
                     </div>

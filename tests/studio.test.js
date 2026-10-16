@@ -1,3 +1,4 @@
+import { stateDouble } from "./state-double.js";
 import test, { beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -49,7 +50,7 @@ const envKeys = [
   "LLM_API_KEY",
   "LLM_BASE_URL",
   "LLM_MODEL",
-  "VERCEL",
+  "VERCEL", "STATE_URL", "STATE_SECRET",
 ];
 let env;
 beforeEach(() => {
@@ -82,6 +83,8 @@ async function sandboxOrder() {
   order.status = "awaiting_payment";
   order.paypalOrderId = "PPORDER00000000001";
   await saveOrder(order);
+  process.env.STATE_URL = "https://state.test/state";
+  process.env.STATE_SECRET = "test-state-secret";
   process.env.PAYPAL_CLIENT_ID = "test-client";
   process.env.PAYPAL_CLIENT_SECRET = "test-client-secret";
   process.env.PAYPAL_ENV = "sandbox";
@@ -92,7 +95,10 @@ async function sandboxOrder() {
 
 function mockPayPal(handler) {
   const calls = [];
+  const state = stateDouble();
   mock.method(globalThis, "fetch", async (url, options = {}) => {
+    const local = state(url, options);
+    if (local) return local;
     const path = new URL(url).pathname;
     if (path === "/v1/oauth2/token")
       return response({
@@ -101,6 +107,15 @@ function mockPayPal(handler) {
         expires_in: 300,
       });
     calls.push({ path, ...options });
+    if (/^\/v2\/payments\/captures\/[^/]+$/.test(path)) {
+      const order = (await import("../lib/store.js")).requestOrders().find(o => o.paypalOrderId);
+      return response({ id: order.captureId || simulatedOrder(order, true).purchase_units[0].payments.captures[0].id,
+        status: "COMPLETED", amount: { value: order.amount, currency_code: order.currency } });
+    }
+    if (path.startsWith("/v2/checkout/orders/") && options.method === "GET") {
+      const order = (await import("../lib/store.js")).requestOrders().find(o => o.paypalOrderId);
+      if (order?.refundId || (order?.qcAttempts.length === 2 && !order.qcAttempts.some(q => q.passed))) return response(simulatedOrder(order, true));
+    }
     return response(await handler(path, options));
   });
   return calls;
@@ -275,7 +290,9 @@ test("two failed QC attempts issue exactly one full refund and withhold bundle",
     result.timeline.find((t) => t.tool === "refund").path,
     /\/v2\/payments\/captures\/.+\/refund/,
   );
-  assert.deepEqual(await fulfillOrder(order.id, session), result);
+  const { jobToken: firstToken, ...first } = result;
+  const { jobToken: retryToken, ...retry } = await fulfillOrder(order.id, session);
+  assert.deepEqual(retry, first);
   await assert.rejects(
     downloadOrder(order.id, session),
     (error) => error.code === "NOT_DELIVERED",
@@ -465,6 +482,11 @@ test("known pending Sandbox refund reconciles without issuing another refund", a
     status: path.endsWith("/refund") ? "PENDING" : "COMPLETED",
     amount: { currency_code: "USD", value: "39.00" },
   }));
+  order.status = "refund_pending";
+  await saveOrder(order);
+  const { stateRequest } = await import("../lib/fulfillment.js");
+  const { jobDigest } = await import("../lib/tokens.js");
+  await stateRequest("cas", "capture:" + order.captureId, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
   const pending = await fulfillOrder(order.id, session);
   assert.equal(pending.status, "refund_pending");
   assert.equal(pending.refundedAmount, "0.00");
@@ -498,6 +520,9 @@ test("known failed Sandbox refund stays failed and does not repeat refund POST",
     assert.match(path, /\/v2\/payments\/refunds\//);
     return { id: order.refundId, status: "FAILED" };
   });
+  const { stateRequest } = await import("../lib/fulfillment.js");
+  const { jobDigest } = await import("../lib/tokens.js");
+  await stateRequest("cas", "capture:" + order.captureId, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
   const result = await fulfillOrder(order.id, session);
   assert.equal(result.status, "refund_failed");
   assert.equal(
@@ -802,4 +827,62 @@ test("live content requests enforce the purchased JSON schema and required array
   assert.equal(body.response_format.type,"json_schema");
   assert.equal(body.response_format.json_schema.strict,true);
   assert.deepEqual(body.response_format.json_schema.schema,schema);
+});
+
+
+test("stale signed paid receipt recovers delivery after process reset without regenerating or refunding", async () => {
+  const order = await sandboxOrder();
+  const calls = mockPayPal(async () => simulatedOrder(order, true));
+  const paidOrder = await captureOrder(order.id, session);
+  const stale = verifyJob(paidOrder.jobToken, session);
+  const delivered = await fulfillOrder(order.id, session);
+  assert.equal(delivered.status, "delivered");
+  await downloadOrder(order.id, session);
+  resetMemoryForTests();
+  const recovered = await withRequestOrders([stale], () => fulfillOrder(order.id, session));
+  assert.deepEqual(recovered.bundle, delivered.bundle);
+  assert.equal(recovered.status, "delivered");
+  assert.ok(recovered.acceptedAt);
+  assert.equal(calls.filter(c => c.path.endsWith("/refund")).length, 0);
+  assert.equal(recovered.qcAttempts.length, delivered.qcAttempts.length);
+});
+
+test("atomic nonce claim allows one cold-instance runner and blocks interrupted replay", async () => {
+  const order = await sandboxOrder();
+  mockPayPal(async () => simulatedOrder(order, true));
+  const paidOrder = verifyJob((await captureOrder(order.id, session)).jobToken, session);
+  const { claimFulfillment } = await import("../lib/fulfillment.js");
+  const results = await Promise.allSettled([claimFulfillment(paidOrder), claimFulfillment(paidOrder)]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  resetMemoryForTests();
+  await assert.rejects(withRequestOrders([paidOrder], () => fulfillOrder(order.id, session)), { code: "NONCE_USED" });
+});
+
+test("capture binding rejects another nonce and legacy receipts cannot start generation", async () => {
+  const order = await sandboxOrder();
+  mockPayPal(async () => simulatedOrder(order, true));
+  const paidOrder = verifyJob((await captureOrder(order.id, session)).jobToken, session);
+  const { claimFulfillment } = await import("../lib/fulfillment.js");
+  await claimFulfillment(paidOrder);
+  await assert.rejects(claimFulfillment({ ...paidOrder, jobNonce: "other-nonce" }), { code: "NONCE_MISMATCH" });
+  const legacy = { ...paidOrder }; delete legacy.jobNonce;
+  await assert.rejects(claimFulfillment(legacy), { code: "LEGACY_RECEIPT" });
+});
+
+test("durable outage fails closed before generation or refund", async () => {
+  const order = await sandboxOrder();
+  mockPayPal(async () => simulatedOrder(order, true));
+  const paidOrder = verifyJob((await captureOrder(order.id, session)).jobToken, session);
+  delete process.env.STATE_URL;
+  const { claimFulfillment } = await import("../lib/fulfillment.js");
+  await assert.rejects(claimFulfillment(paidOrder), { code: "STATE_UNAVAILABLE" });
+});
+
+test("QC rejects unfinished copy and exaggerated English and Korean claims", async () => {
+  const order = await paid();
+  const delivered = await fulfillOrder(order.id, session);
+  for (const claim of ["[needs info]", "[확인 필요]", "The best bag", "완벽한 품질을 보장해요"] ) {
+    const bundle = structuredClone(delivered.bundle); bundle.pdp.subheadline = claim;
+    assert.equal(qualityCheck(bundle, order).passed, false);
+  }
 });

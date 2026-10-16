@@ -1,3 +1,4 @@
+import { stateDouble } from "./state-double.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GET, POST } from "../app/api/[...path]/route.js";
@@ -91,11 +92,12 @@ test("unsigned webhook cannot mutate demo orders", async () => {
 });
 
 async function withSandboxRoutes(t, action) {
-  const keys = ["PAYPAL_ENV", "PAYPAL_BASE_URL", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID", "APP_SIGNING_SECRET", "LLM_API_KEY"];
+  const keys = ["PAYPAL_ENV", "PAYPAL_BASE_URL", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "STATE_URL", "STATE_SECRET", "PAYPAL_WEBHOOK_ID", "APP_SIGNING_SECRET", "LLM_API_KEY"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   Object.assign(process.env, {
     PAYPAL_ENV: "sandbox",
     PAYPAL_BASE_URL: "https://api-m.sandbox.paypal.com",
+    STATE_URL: "https://state.test/state", STATE_SECRET: "test-state-secret",
     PAYPAL_CLIENT_ID: "routes-sandbox-client",
     PAYPAL_CLIENT_SECRET: "routes-sandbox-secret",
     PAYPAL_WEBHOOK_ID: "routes-sandbox-webhook",
@@ -106,7 +108,9 @@ async function withSandboxRoutes(t, action) {
   const calls = [];
   const state = { remote: null, refund: null };
   const json = value => Response.json(value);
+  const durable = stateDouble();
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    const local = durable(url, options); if (local) return local;
     const parsed = new URL(url);
     assert.equal(parsed.origin, "https://api-m.sandbox.paypal.com", "tests must never contact a live endpoint");
     calls.push({ path: parsed.pathname, method: options.method, body: options.body });
@@ -116,6 +120,7 @@ async function withSandboxRoutes(t, action) {
       return json(state.remote);
     }
     if (parsed.pathname === "/v2/checkout/orders/PPROUTESORDER00001" && options.method === "GET") return json(state.remote);
+    if (parsed.pathname === "/v2/payments/captures/PPROUTESCAPTURE001") return json(state.remote.purchase_units[0].payments.captures[0]);
     if (parsed.pathname === "/v2/payments/refunds/PPROUTESREFUND001" && options.method === "GET" && state.refund) return json(state.refund);
     assert.fail(`Unexpected mocked request: ${options.method} ${parsed.pathname}`);
   });
