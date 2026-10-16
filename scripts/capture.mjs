@@ -370,6 +370,16 @@ async function captureSandbox(page, context, config) {
     assert.equal(result.order.status,scenario === "standard" ? "delivered" : "refunded",JSON.stringify({status:result.order.status,qc:result.order.qcAttempts}));
     assert.equal(result.order.aiMode,"live");
     assert.ok(result.order.llmUsage.some(usage=>usage.step==="content"));
+    const replayResponse = await context.request.post(`${baseURL}/api/orders/${paid.id}/fulfill`, {
+      data: {}, headers: {"x-job-token": paid.jobToken}
+    });
+    assert.ok(replayResponse.ok(), "Stale paid receipt must reconcile safely");
+    const replayed = (await replayResponse.json()).order;
+    assert.equal(replayed.status, result.order.status);
+    assert.deepEqual(replayed.bundle, result.order.bundle);
+    assert.equal(replayed.llmUsage.length, result.order.llmUsage.length, "Replay must not invoke the model again");
+    assert.equal(replayed.refundId, result.order.refundId);
+
     console.log(JSON.stringify({stage:result.order.status,paypalOrderId:result.order.paypalOrderId,captureId:result.order.captureId,refundId:result.order.refundId,qc:result.order.qcAttempts,llmUsage:result.order.llmUsage}));
     await screenshot(scenario === "standard" ? "03-delivery" : "04-refund");
     if (scenario === "standard") {
@@ -394,6 +404,6 @@ async function captureSandbox(page, context, config) {
   await page.setViewportSize({width:390,height:844});
   await screenshot("06-mobile");
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await writeFile(`${output}/verification.json`,JSON.stringify({testedAt:new Date().toISOString(),productionUrl:baseURL,paymentMode:"sandbox",aiMode:"live",passed:true,desktopViewport:{width:1920,height:1080},results,checks:["real Standard guest-card Sandbox approval and capture","live Nebius content and QC","Markdown download","real full Sandbox refund after two forced QC failures","signed ledger survives reload","mobile overflow"]},null,2)+"\n");
+  await writeFile(`${output}/verification.json`,JSON.stringify({testedAt:new Date().toISOString(),productionUrl:baseURL,paymentMode:"sandbox",aiMode:"live",passed:true,desktopViewport:{width:1920,height:1080},results,checks:["real Standard guest-card Sandbox approval and capture","live Nebius content and QC","Markdown download","real full Sandbox refund after two forced QC failures","stale paid receipt cannot regenerate or refund delivery","signed ledger survives reload","mobile overflow"]},null,2)+"\n");
   console.log("Live Sandbox browser capture passed.");
 }
