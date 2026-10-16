@@ -8,12 +8,19 @@ Turn product facts into English or Korean content, with PayPal Sandbox checkout 
 - Pay through PayPal Sandbox, then generate and review live Nebius content.
 - Download Markdown/JSON and inspect the payment, content-check and refund timeline.
 
-Use fictional product facts and Sandbox test payments. Guest checkout uses PayPal’s [Sandbox card generator](https://developer.paypal.com/sandbox-testing/card-testing/); a Sandbox personal buyer is the alternative. The labeled refund scenario deliberately fails both checks.
+Use fictional product facts and Sandbox test payments. To try guest checkout:
+
+1. Get a quote, choose **Continue to PayPal Sandbox**, then **Sandbox guest card checkout**.
+2. Generate a US Visa test card with PayPal’s [Sandbox card generator](https://developer.paypal.com/sandbox-testing/card-testing/). Use fictional US billing details and select guest checkout without creating an account.
+3. Pay with the test card and return to the Studio. The signed payment webhook starts generation; the result appears automatically. Download Markdown or JSON.
+
+No real money moves. A Sandbox personal buyer is an alternative. The labeled refund scenario deliberately fails both checks.
 
 ```mermaid
 flowchart LR
   Seller --> Studio --> PayPal[PayPal Sandbox capture]
-  PayPal --> Claim[One-time job claim in existing AWS DynamoDB]
+  PayPal --> Webhook[Verified signed webhook]
+  Webhook --> Claim[One-time job claim in existing AWS DynamoDB]
   Claim --> Nebius[Live Nebius copy] --> QC[Content checks]
   QC --> Delivery[Stored bundle and downloads]
   QC --> Refund[Full Sandbox refund after two failures]
@@ -21,8 +28,8 @@ flowchart LR
 
 Sponsor technology:
 
-- **PayPal Orders v2 / Payments v2:** create, retrieve and capture orders; check captures/refunds; refund the original capture. Server rules fix prices and refund eligibility. Financial requests keep stable idempotency keys. PayPal verifies webhook signatures.
-- **[Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart):** OpenAI-compatible structured generation in English/Korean. Prompts use seller facts; rejected passages are corrected without replacing the rest of the draft. Checks flag specified unsupported claims. With no LLM key, content is labeled deterministic demo mode.
+- **PayPal Orders v2 / Payments v2:** Sandbox orders, captures and refunds, stable idempotency keys, and verified webhook signatures.
+- **[Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart):** live Nemotron English/Korean drafts and corrections. Still-rejected fields can use disclosed source rules, followed by another check. Missing keys select labeled demo fixtures.
 
 ## Quick start
 
@@ -36,13 +43,13 @@ npm run build
 npm start
 ```
 
-Set PayPal Sandbox credentials, webhook ID and a signing secret. `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` select the model. `STATE_URL` and `STATE_SECRET` use the authenticated CAS endpoint in our existing Shorts QC AWS stack (`CommerceStateSecrets` parameter). Keep secrets server-side; `.env.example` has empty credential values.
+Fill `.env.local` with Sandbox credentials, webhook ID, signing secret and `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. `STATE_URL`/`STATE_SECRET` use our existing Shorts QC AWS CAS endpoint (`CommerceStateSecrets`). Secrets stay server-side.
 
-Each one-time nonce is bound to the product brief, PayPal order and capture. Old receipts recover the stored result; they cannot generate again or refund completed work. Successful delivery blocks automatic refunds; downloading records acceptance. The app checks current PayPal capture/refund state before fulfillment, refunds and downloads. Financial completion records do not expire. Storage outages fail closed; interrupted generation needs seller review. Legacy receipts cannot start new work.
+One-time claims bind each brief, order and capture. Stored checkouts survive restarts; old receipts recover results without regenerating or refunding delivered work. Current PayPal state is checked before fulfillment, refunds and downloads. Completion records do not expire.
 
-Receipts are signed and tied to the browser cookie. Keep that browser for recovery. This is a Sandbox prototype. Automated checks catch specified claims and unfinished sentences; sellers still review every draft before publishing.
+Keep the same browser for recovery. Interrupted jobs need seller review. Content checks cover specified patterns; review drafts before publishing.
 
-Tests cover payment identity, prices, webhook signatures, replay after memory reset, concurrent claims, changed captures, acceptance, refunds, provider failures and observed English/Korean copy errors. GitHub Actions runs tests, build and secret scanning. Real screenshots are in `media/`; live copy and production samples are outside the repo in `hackathons/paypal/samples/`. A narrated video and Devpost submission remain owner tasks.
+GitHub Actions runs tests, build and secret scans. Production screenshots: `media/`. Raw results/video: `hackathons/paypal/` outside this repo. Owner: upload video and submit Devpost.
 
 ## What was built during the hackathon
 

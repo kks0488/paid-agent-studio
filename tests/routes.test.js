@@ -2,8 +2,10 @@ import { stateDouble } from "./state-double.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GET, POST } from "../app/api/[...path]/route.js";
-import { resetMemoryForTests } from "../lib/store.js";
+import { resetMemoryForTests, withRequestOrders } from "../lib/store.js";
 import { jobDigest, verifyJob } from "../lib/tokens.js";
+import { handleWebhook, fulfillVerifiedWebhook } from "../lib/studio.js";
+import { storedCheckout, rememberCheckout } from "../lib/fulfillment.js";
 
 const invoke = (handler, path, options = {}) =>
   handler(new Request(`https://studio.example/api/${path}`, options), {
@@ -115,6 +117,7 @@ async function withSandboxRoutes(t, action) {
     assert.equal(parsed.origin, "https://api-m.sandbox.paypal.com", "tests must never contact a live endpoint");
     calls.push({ path: parsed.pathname, method: options.method, body: options.body });
     if (parsed.pathname === "/v1/oauth2/token") return json({ access_token: "routes-test-access-token", expires_in: 300 });
+    if (parsed.pathname === "/v1/notifications/verify-webhook-signature") return json({ verification_status: "SUCCESS" });
     if (parsed.pathname === "/v2/checkout/orders" && options.method === "POST") {
       state.remote = { ...JSON.parse(options.body), id: "PPROUTESORDER00001", status: "CREATED", links: [] };
       return json(state.remote);
@@ -253,5 +256,86 @@ test("ledger drops invalid/expired/foreign receipts while preserving valid jobs"
     const empty=await invoke(POST,"ledger",{method:"POST",headers:foreign,body:JSON.stringify({tokens:[order.jobToken]})});
     assert.equal(empty.status,200);
     assert.deepEqual((await empty.json()).orders,[]);
+  });
+});
+
+const signedWebhookHeaders = {
+  "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.paypal.com/cert/test",
+  "paypal-transmission-id": "test-transmission", "paypal-transmission-sig": "test-signature",
+  "paypal-transmission-time": "2026-10-16T00:00:00Z",
+};
+const completedEvent = () => ({ id: "WH-STATELESS-CAPTURE", event_type: "PAYMENT.CAPTURE.COMPLETED",
+  resource: { id: "PPROUTESCAPTURE001", status: "COMPLETED", amount: { currency_code: "USD", value: "19.00" },
+    supplementary_data: { related_ids: { order_id: "PPROUTESORDER00001" } } } });
+const productionWebhook = event => withRequestOrders([], () => handleWebhook(signedWebhookHeaders, event));
+
+test("production webhook restores immutable checkout after cold start and delivers without browser fulfillment", async (t) => {
+  await withSandboxRoutes(t, async ({ state, calls }) => {
+    const { order, headers } = await signedSandboxCheckout();
+    completeRemoteOrder(state);
+    resetMemoryForTests();
+    const event = completedEvent();
+    const handoff = await productionWebhook(event);
+    assert.equal(handoff.orderId, order.id);
+    assert.equal(handoff.status, "paid");
+    // Run outside request context, as a serverless post-response continuation may do.
+    resetMemoryForTests();
+    const delivered = await fulfillVerifiedWebhook(handoff.orderId);
+    assert.equal(delivered.status, "delivered");
+    assert.equal(delivered.timeline.filter(item => item.tool === "generate_bundle").length, 1);
+    assert.equal(delivered.timeline.filter(item => item.eventId === event.id).length, 1);
+    const replay = await productionWebhook(event);
+    assert.equal(replay.status, "delivered");
+    const again = await fulfillVerifiedWebhook(replay.orderId);
+    assert.deepEqual(again.bundle, delivered.bundle);
+    assert.equal(again.timeline.filter(item => item.tool === "generate_bundle").length, 1);
+    assert.equal((await storedCheckout(order.id)).value.events.length, 1);
+    const recovered = (await (await invoke(GET, `orders/${order.id}`, { headers })).json()).order;
+    assert.equal(recovered.status, "delivered");
+    assert.equal(recovered.timeline.filter(item => item.eventId === event.id).length, 1);
+    assert.equal((await invoke(GET, `orders/${order.id}/download`, { headers })).status, 200);
+    assert.equal(calls.filter(call => call.path.endsWith("/capture") || call.path.endsWith("/refund")).length, 0);
+  });
+});
+
+test("production webhook and browser fulfillment race claims generation once", async (t) => {
+  await withSandboxRoutes(t, async ({ state }) => {
+    const { order, headers } = await signedSandboxCheckout();
+    completeRemoteOrder(state);
+    const handoff = await productionWebhook(completedEvent());
+    const [continued, browser] = await Promise.all([
+      fulfillVerifiedWebhook(handoff.orderId),
+      invoke(POST, `orders/${order.id}/fulfill`, { method: "POST", headers, body: "{}" }),
+    ]);
+    assert.equal(continued.status, "delivered");
+    assert.equal(browser.status, 200);
+    const result = (await browser.json()).order;
+    assert.equal(result.timeline.filter(item => item.tool === "generate_bundle").length, 1);
+    assert.deepEqual(result.bundle, continued.bundle);
+  });
+});
+
+test("checkout replay preserves binding and production webhook rejects a mismatched signed-job digest", async (t) => {
+  await withSandboxRoutes(t, async ({ state }) => {
+    const { order, headers } = await signedSandboxCheckout();
+    const original = await storedCheckout(order.id);
+    assert.equal((await invoke(POST, `orders/${order.id}/checkout`, { method: "POST", headers, body: "{}" })).status, 200);
+    assert.deepEqual(await storedCheckout(order.id), original);
+    const receipt = verifyJob(order.jobToken);
+    await assert.rejects(rememberCheckout({ ...receipt, jobNonce: "another-nonce" }), { code: "NONCE_MISMATCH" });
+    completeRemoteOrder(state);
+    state.remote.purchase_units[0].invoice_id += "wrong-digest";
+    await assert.rejects(productionWebhook(completedEvent()), { code: "PAYMENT_MISMATCH" });
+    assert.deepEqual(await storedCheckout(order.id), original);
+  });
+});
+
+test("production approval webhook records no generation handoff before capture", async (t) => {
+  await withSandboxRoutes(t, async () => {
+    const { order } = await signedSandboxCheckout();
+    const result = await productionWebhook({ id: "WH-APPROVED", event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PPROUTESORDER00001" } });
+    assert.equal(result.verified, true);
+    assert.equal(result.orderId, undefined);
+    assert.equal((await storedCheckout(order.id)).value.events.length, 0);
   });
 });

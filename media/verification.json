@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-10-16T08:47:19.755Z",
+  "testedAt": "2026-10-16T10:21:03.282Z",
   "productionUrl": "https://paid-agent-studio.vercel.app",
   "paymentMode": "sandbox",
   "aiMode": "live",
@@ -8,93 +8,145 @@
     "width": 1920,
     "height": 1080
   },
-  "results": [
+  "mobileViewport": {
+    "width": 390,
+    "height": 844
+  },
+  "runs": [
     {
-      "jobId": "9abd2607-b0ac-47e2-ac51-69c6818b9564",
-      "paypalOrderId": "40A05490NF0280508",
-      "captureId": "7JY0688059503120W",
-      "refundId": "7W736069RF245784V",
-      "status": "refunded",
-      "quoteMode": "live",
+      "name": "run-1-english",
+      "language": "English",
+      "passed": true,
+      "jobId": "eb16b2be-99d2-4178-a665-48e27a873673",
+      "paypalOrderId": "7KH29611YR462421Y",
+      "captureId": "5SY29544NY242544B",
+      "refundId": null,
+      "status": "delivered",
       "aiMode": "live",
-      "llmUsage": [
+      "webhookEvents": [
+        "Verified PayPal event WH-0TB71275S9449193H-7923854116234414U · PAYMENT.CAPTURE.COMPLETED · order 7KH29611YR462421Y."
+      ],
+      "qcAttempts": [
         {
-          "step": "quote",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 41,
-            "prompt_tokens": 101,
-            "total_tokens": 142,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 101
-          }
-        },
-        {
-          "step": "content",
           "attempt": 1,
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 536,
-            "prompt_tokens": 1218,
-            "total_tokens": 1754,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 1218
-          }
+          "passed": false,
+          "issues": [
+            "Unsupported product fact “comfort” in .pdp.subheadline.",
+            "Unsupported essentials set claim in .pdp.bullets.1; the source does not establish what the product can hold.",
+            "Unsupported product fact “daily essentials” in .pdp.bullets.1.",
+            "Unsupported hand-wash care purpose in .pdp.bullets.4; state only the supplied care instruction.",
+            "Unsupported hand-wash care purpose in .pdp.description.0; state only the supplied care instruction.",
+            "Unsupported hand-wash care purpose in .pdp.description.1; state only the supplied care instruction.",
+            "Unsupported product fact “comfort” in .pdp.description.1.",
+            "Unsupported product fact “personalized” in .pdp.description.1.",
+            "Unsupported hand-wash care purpose in .pdp.description.2; state only the supplied care instruction.",
+            "Unsupported product fact “comfort” in .ads.bodies.1.",
+            "Unsupported product fact “personalized” in .ads.bodies.1.",
+            "Unsupported product fact “slider” in .shorts.scenes.1.visual.",
+            "Unsupported product fact “comfort” in .shorts.scenes.1.voiceover.",
+            "Unsupported product fact “shoulder” in .shorts.scenes.2.visual.",
+            "Unsupported hand-wash care purpose in .shorts.scenes.3.voiceover; state only the supplied care instruction."
+          ]
         },
         {
-          "step": "content",
           "attempt": 2,
-          "field": ".pdp.subheadline",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 17,
-            "prompt_tokens": 205,
-            "total_tokens": 222,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 205
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 2,
-          "field": ".pdp.description.2",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 12,
-            "prompt_tokens": 203,
-            "total_tokens": 215,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 203
-          }
+          "passed": true,
+          "issues": []
         }
+      ]
+    },
+    {
+      "name": "run-2-english",
+      "language": "English",
+      "passed": true,
+      "jobId": "c04d9930-c128-40a2-a41f-920eb29a06d8",
+      "paypalOrderId": "6VX91514EJ435384M",
+      "captureId": "1KM30601T0707325T",
+      "refundId": null,
+      "status": "delivered",
+      "aiMode": "live",
+      "webhookEvents": [
+        "Verified PayPal event WH-1FG1683341697735C-2KX64973BU032424E · PAYMENT.CAPTURE.COMPLETED · order 6VX91514EJ435384M."
+      ],
+      "qcAttempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "issues": [
+            "Unsupported product fact “comfort” in .pdp.subheadline.",
+            "Unsupported essentials set claim in .pdp.bullets.1; the source does not establish what the product can hold.",
+            "Unsupported product fact “daily essentials” in .pdp.bullets.1.",
+            "Unsupported hand-wash care purpose in .pdp.bullets.4; state only the supplied care instruction.",
+            "Unsupported simple or easy care claim in .pdp.bullets.4.",
+            "Unsupported product fact “easy care” in .pdp.bullets.4.",
+            "Unsupported simple or easy care claim in .pdp.description.1.",
+            "Unsupported product fact “comfort” in .pdp.description.1.",
+            "Unsupported product fact “personalized” in .pdp.description.1.",
+            "Unsupported fit claim in .pdp.description.2. State the supplied feature without promising fit.",
+            "Unsupported essentials set claim in .pdp.faq.1.answer; the source does not establish what the product can hold.",
+            "Unsupported product fact “daily essentials” in .pdp.faq.1.answer.",
+            "Unsupported fit claim in .ads.bodies.1. State the supplied feature without promising fit.",
+            "Unsupported fit claim in .shorts.scenes.1.voiceover. State the supplied feature without promising fit.",
+            "Unsupported product fact “shoulder” in .shorts.scenes.2.visual.",
+            "Use a complete spoken English sentence rather than a feature label in .shorts.scenes.2.voiceover.",
+            "Unsupported hand-wash care purpose in .shorts.scenes.3.voiceover; state only the supplied care instruction.",
+            "Unsupported simple or easy care claim in .shorts.scenes.3.voiceover.",
+            "Unsupported product fact “easy care” in .shorts.scenes.3.voiceover."
+          ]
+        },
+        {
+          "attempt": 2,
+          "passed": true,
+          "issues": []
+        }
+      ]
+    },
+    {
+      "name": "run-3-korean",
+      "language": "Korean",
+      "passed": true,
+      "jobId": "16de2a99-63ca-43f6-b9e1-9016b1e7dab2",
+      "paypalOrderId": "44J72407F8064054G",
+      "captureId": "51R82693EV796463P",
+      "refundId": null,
+      "status": "delivered",
+      "aiMode": "live",
+      "webhookEvents": [
+        "Verified PayPal event WH-76870526XA2150504-19365127BT1510050 · PAYMENT.CAPTURE.COMPLETED · order 44J72407F8064054G."
+      ],
+      "qcAttempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "issues": [
+            "Unsupported fit claim in .pdp.bullets.3. State the supplied feature without promising fit.",
+            "Unsupported product fact “넉넉” in .pdp.description.1.",
+            "Unsupported product fact “편안” in .pdp.description.2.",
+            "Unsupported product fact “착용감” in .pdp.description.2.",
+            "Invalid shot description in .shorts.scenes.0.visual; replace the misspelled shot instruction.",
+            "Unsupported fit claim in .shorts.scenes.2.voiceover. State the supplied feature without promising fit.",
+            "Unsupported product fact “편리” in .shorts.scenes.3.voiceover."
+          ]
+        },
+        {
+          "attempt": 2,
+          "passed": true,
+          "issues": []
+        }
+      ]
+    },
+    {
+      "name": "run-4-refund",
+      "language": "English",
+      "passed": true,
+      "jobId": "611a258e-3343-4fa4-8b7f-89ccb7a6ffd4",
+      "paypalOrderId": "8PK5456555451054W",
+      "captureId": "6K946135UU808560V",
+      "refundId": "95N06472KB313992F",
+      "status": "refunded",
+      "aiMode": "live",
+      "webhookEvents": [
+        "Verified PayPal event WH-0VU19190UD241650H-01L82256YR540621K · PAYMENT.CAPTURE.COMPLETED · order 8PK5456555451054W."
       ],
       "qcAttempts": [
         {
@@ -102,7 +154,17 @@
           "passed": false,
           "issues": [
             "Risky claim in .pdp.subheadline.",
-            "Unsupported product fact “personalized” in .pdp.description.2."
+            "Unsupported essentials set claim in .pdp.bullets.1; the source does not establish what the product can hold.",
+            "Unsupported product fact “daily essentials” in .pdp.bullets.1.",
+            "Unsupported hand-wash care purpose in .pdp.bullets.4; state only the supplied care instruction.",
+            "Unsupported simple or easy care claim in .pdp.bullets.4.",
+            "Unsupported product fact “easy care” in .pdp.bullets.4.",
+            "Unsupported hand-wash care purpose in .pdp.description.2; state only the supplied care instruction.",
+            "Unsupported fit claim in .ads.bodies.1. State the supplied feature without promising fit.",
+            "Unsupported product fact “slider” in .shorts.scenes.1.visual.",
+            "Unsupported physical care tag or label in .shorts.scenes.3.visual; stage a separate care card or caption instead.",
+            "Unsupported hand-wash care purpose in .shorts.scenes.3.voiceover; state only the supplied care instruction.",
+            "Unsupported simple or easy care claim in .shorts.scenes.3.caption."
           ]
         },
         {
@@ -112,621 +174,51 @@
             "Risky claim in .pdp.subheadline."
           ]
         }
-      ],
-      "timeline": [
-        {
-          "id": "4d02faa2-8ea9-44ee-ba6f-13a4ac942b4b",
-          "tool": "explain_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live AI explained the fixed package scope.",
-          "at": "2026-10-16T08:37:13.400Z"
-        },
-        {
-          "id": "3f4cf142-df21-4439-b1e4-c4e75e615954",
-          "tool": "price_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Launch: $39.00 USD, set by server rules.",
-          "at": "2026-10-16T08:37:13.400Z"
-        },
-        {
-          "id": "98d3604d-e4cd-4338-b0a4-a19740fad9de",
-          "tool": "create_order",
-          "method": "POST",
-          "path": "/v2/checkout/orders",
-          "status": "completed",
-          "summary": "PayPal Sandbox · create order confirmed · 40A05490NF0280508.",
-          "at": "2026-10-16T08:37:17.819Z"
-        },
-        {
-          "id": "737eab5d-b8af-492b-af2b-3fef0d4dd461",
-          "tool": "get_order",
-          "method": "GET",
-          "path": "/v2/checkout/orders/40A05490NF0280508",
-          "status": "completed",
-          "summary": "PayPal Sandbox · get order confirmed · 40A05490NF0280508.",
-          "at": "2026-10-16T08:39:35.738Z"
-        },
-        {
-          "id": "0e9dccd4-a34a-4ffb-93a0-70afe26497b6",
-          "tool": "capture",
-          "method": "POST",
-          "path": "/v2/checkout/orders/40A05490NF0280508/capture",
-          "status": "completed",
-          "summary": "PayPal Sandbox · capture confirmed · 40A05490NF0280508.",
-          "at": "2026-10-16T08:39:37.386Z"
-        },
-        {
-          "id": "7ddc7d25-9625-4350-8e42-eda7ea9ae741",
-          "tool": "confirm_payment",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Validated capture 7JY0688059503120W, order 40A05490NF0280508, completed status and $39.00 USD.",
-          "at": "2026-10-16T08:39:37.386Z"
-        },
-        {
-          "id": "e41d5da8-90dc-4ff4-8a1d-ec095f8811d5",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:40:02.455Z"
-        },
-        {
-          "id": "ca1b0073-f098-4f18-9d96-754f4b106887",
-          "tool": "sandbox_qc_test",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Sandbox-only failure injection after generation; the quality guarantee will refund this real Sandbox capture.",
-          "at": "2026-10-16T08:40:02.455Z"
-        },
-        {
-          "id": "5fb4fb4f-6182-4f99-9db8-7468cf9d9391",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 1.",
-          "at": "2026-10-16T08:40:02.456Z"
-        },
-        {
-          "id": "ed3ded00-0351-4832-94e2-b4703643f19f",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "failed",
-          "summary": "Attempt 1: Risky claim in .pdp.subheadline. Unsupported product fact “personalized” in .pdp.description.2.",
-          "at": "2026-10-16T08:40:02.456Z"
-        },
-        {
-          "id": "0bd7e411-19a7-42ed-a474-37e5cdf21455",
-          "tool": "content_repair",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Corrected 2 rejected fields; other draft fields were preserved.",
-          "at": "2026-10-16T08:40:03.037Z"
-        },
-        {
-          "id": "ae3ed87d-3a17-4428-8bda-42ae8452c2bd",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:40:03.037Z"
-        },
-        {
-          "id": "6e7226e9-6213-4fba-ba49-fb4c0dca140f",
-          "tool": "sandbox_qc_test",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Sandbox-only failure injection after generation; the quality guarantee will refund this real Sandbox capture.",
-          "at": "2026-10-16T08:40:03.037Z"
-        },
-        {
-          "id": "4956d7f6-278c-4d5e-a31d-bc29c2e470ec",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 2.",
-          "at": "2026-10-16T08:40:03.037Z"
-        },
-        {
-          "id": "a98b4d69-e1dc-479f-8f25-b97c4304d60b",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "failed",
-          "summary": "Attempt 2: Risky claim in .pdp.subheadline.",
-          "at": "2026-10-16T08:40:03.037Z"
-        },
-        {
-          "id": "5395f5c9-ea72-4bc9-a6be-9a65eb910b12",
-          "tool": "refund_guard",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Two failed quality checks; captured payment exists; full refund only.",
-          "at": "2026-10-16T08:40:06.039Z"
-        },
-        {
-          "id": "71743560-1082-4ea6-8de3-cbbaa2f497bb",
-          "tool": "refund",
-          "method": "POST",
-          "path": "/v2/payments/captures/7JY0688059503120W/refund",
-          "status": "completed",
-          "summary": "PayPal Sandbox · refund confirmed · 7W736069RF245784V.",
-          "at": "2026-10-16T08:40:07.473Z"
-        },
-        {
-          "id": "f8fc4ec3-764c-4efa-8a28-95bb13b941f1",
-          "tool": "guarantee",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "The quality guarantee returned the full captured amount.",
-          "at": "2026-10-16T08:40:07.473Z"
-        }
-      ]
-    },
-    {
-      "jobId": "8e5ce31c-9e96-43e5-b2ed-1fcc59cfdc3a",
-      "paypalOrderId": "1RC69173SV0571046",
-      "captureId": "5S226336WA5518126",
-      "refundId": null,
-      "status": "delivered",
-      "quoteMode": "live",
-      "aiMode": "live",
-      "llmUsage": [
-        {
-          "step": "quote",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 41,
-            "prompt_tokens": 101,
-            "total_tokens": 142,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 101
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 1,
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 535,
-            "prompt_tokens": 1218,
-            "total_tokens": 1753,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 1218
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 2,
-          "field": ".pdp.description.2",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 12,
-            "prompt_tokens": 203,
-            "total_tokens": 215,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 203
-          }
-        }
-      ],
-      "qcAttempts": [
-        {
-          "attempt": 1,
-          "passed": false,
-          "issues": [
-            "Unsupported product fact “personalized” in .pdp.description.2."
-          ]
-        },
-        {
-          "attempt": 2,
-          "passed": true,
-          "issues": []
-        }
-      ],
-      "timeline": [
-        {
-          "id": "6668a65b-9ea5-45f5-9d54-595bed735441",
-          "tool": "explain_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live AI explained the fixed package scope.",
-          "at": "2026-10-16T08:36:21.748Z"
-        },
-        {
-          "id": "adf29745-a041-40b9-91a9-cf5a7b35e901",
-          "tool": "price_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Launch: $39.00 USD, set by server rules.",
-          "at": "2026-10-16T08:36:21.748Z"
-        },
-        {
-          "id": "80e8a4e1-0ede-478e-b019-99c1eb17db0d",
-          "tool": "create_order",
-          "method": "POST",
-          "path": "/v2/checkout/orders",
-          "status": "completed",
-          "summary": "PayPal Sandbox · create order confirmed · 1RC69173SV0571046.",
-          "at": "2026-10-16T08:36:26.064Z"
-        },
-        {
-          "id": "cafd36fb-e218-4edb-8b15-57cbd87c0aa6",
-          "tool": "get_order",
-          "method": "GET",
-          "path": "/v2/checkout/orders/1RC69173SV0571046",
-          "status": "completed",
-          "summary": "PayPal Sandbox · get order confirmed · 1RC69173SV0571046.",
-          "at": "2026-10-16T08:36:38.474Z"
-        },
-        {
-          "id": "e13846c6-4130-4ef9-b517-431149c5968a",
-          "tool": "capture",
-          "method": "POST",
-          "path": "/v2/checkout/orders/1RC69173SV0571046/capture",
-          "status": "completed",
-          "summary": "PayPal Sandbox · capture confirmed · 1RC69173SV0571046.",
-          "at": "2026-10-16T08:36:39.584Z"
-        },
-        {
-          "id": "8b0346df-1e5c-4fec-a4df-b7228240cc77",
-          "tool": "confirm_payment",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Validated capture 5S226336WA5518126, order 1RC69173SV0571046, completed status and $39.00 USD.",
-          "at": "2026-10-16T08:36:39.584Z"
-        },
-        {
-          "id": "ebee208d-ebca-450e-9e34-74b39a20d9bc",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:37:03.499Z"
-        },
-        {
-          "id": "7671e795-e6c8-45e5-b25c-b68deed1f131",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 1.",
-          "at": "2026-10-16T08:37:03.504Z"
-        },
-        {
-          "id": "ba3da916-65d5-4d2a-9048-8e1331d80768",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "failed",
-          "summary": "Attempt 1: Unsupported product fact “personalized” in .pdp.description.2.",
-          "at": "2026-10-16T08:37:03.504Z"
-        },
-        {
-          "id": "5c43dfdf-78b0-4558-8393-570c1f44131b",
-          "tool": "content_repair",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Corrected 1 rejected fields; other draft fields were preserved.",
-          "at": "2026-10-16T08:37:03.950Z"
-        },
-        {
-          "id": "7ba4a97c-859b-4b3e-9d73-6e4ccdaeb885",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:37:03.950Z"
-        },
-        {
-          "id": "09eb12aa-66ed-46ed-bbbc-e8703f8ac2d2",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 2.",
-          "at": "2026-10-16T08:37:03.951Z"
-        },
-        {
-          "id": "991aa4e3-8669-48dd-aeb7-1823677bfa5c",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "passed",
-          "summary": "Attempt 2: source facts and risky-claim checks passed.",
-          "at": "2026-10-16T08:37:03.951Z"
-        },
-        {
-          "id": "9a7f20d1-e1ed-46bf-9272-14cc0b786e51",
-          "tool": "deliver",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Paid package is ready for Markdown and JSON download.",
-          "at": "2026-10-16T08:37:03.951Z"
-        }
-      ]
-    },
-    {
-      "jobId": "7c73633d-502b-4b9a-8af7-fd4100760a64",
-      "paypalOrderId": "0RH30191NY130325M",
-      "captureId": "88D05846X1095415V",
-      "refundId": null,
-      "status": "delivered",
-      "quoteMode": "live",
-      "aiMode": "live",
-      "llmUsage": [
-        {
-          "step": "quote",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 41,
-            "prompt_tokens": 101,
-            "total_tokens": 142,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 101
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 1,
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 512,
-            "prompt_tokens": 1218,
-            "total_tokens": 1730,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 1218
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 2,
-          "field": ".pdp.bullets.3",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 12,
-            "prompt_tokens": 205,
-            "total_tokens": 217,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 205
-          }
-        },
-        {
-          "step": "content",
-          "attempt": 2,
-          "field": ".pdp.description.2",
-          "model": "nvidia/Nemotron-3_5-Lightning",
-          "usage": {
-            "completion_tokens": 12,
-            "prompt_tokens": 203,
-            "total_tokens": 215,
-            "completion_tokens_details": {
-              "accepted_prediction_tokens": null,
-              "audio_tokens": null,
-              "reasoning_tokens": 0,
-              "rejected_prediction_tokens": null
-            },
-            "prompt_tokens_details": null,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 203
-          }
-        }
-      ],
-      "qcAttempts": [
-        {
-          "attempt": 1,
-          "passed": false,
-          "issues": [
-            "Unsupported fit claim in .pdp.bullets.3. State the supplied feature without promising fit.",
-            "Unsupported product fact “personalized” in .pdp.description.2."
-          ]
-        },
-        {
-          "attempt": 2,
-          "passed": true,
-          "issues": []
-        }
-      ],
-      "timeline": [
-        {
-          "id": "e64320c6-edd2-4da7-9aa2-1afabc953354",
-          "tool": "explain_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live AI explained the fixed package scope.",
-          "at": "2026-10-16T08:46:19.251Z"
-        },
-        {
-          "id": "80475227-39d9-4027-825e-fbc8600bab94",
-          "tool": "price_quote",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Launch: $39.00 USD, set by server rules.",
-          "at": "2026-10-16T08:46:19.251Z"
-        },
-        {
-          "id": "739d0a26-0e24-48f5-bcd6-57340765fe27",
-          "tool": "create_order",
-          "method": "POST",
-          "path": "/v2/checkout/orders",
-          "status": "completed",
-          "summary": "PayPal Sandbox · create order confirmed · 0RH30191NY130325M.",
-          "at": "2026-10-16T08:46:23.925Z"
-        },
-        {
-          "id": "82bdb4b7-2529-49cf-93f7-98092d1e85d6",
-          "tool": "get_order",
-          "method": "GET",
-          "path": "/v2/checkout/orders/0RH30191NY130325M",
-          "status": "completed",
-          "summary": "PayPal Sandbox · get order confirmed · 0RH30191NY130325M.",
-          "at": "2026-10-16T08:46:42.426Z"
-        },
-        {
-          "id": "0e09f9e8-3dfb-48b6-9f01-48908e546e28",
-          "tool": "capture",
-          "method": "POST",
-          "path": "/v2/checkout/orders/0RH30191NY130325M/capture",
-          "status": "completed",
-          "summary": "PayPal Sandbox · capture confirmed · 0RH30191NY130325M.",
-          "at": "2026-10-16T08:46:43.878Z"
-        },
-        {
-          "id": "8a3cd0f1-c55e-44a3-b9be-31d1e9cd299d",
-          "tool": "confirm_payment",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Validated capture 88D05846X1095415V, order 0RH30191NY130325M, completed status and $39.00 USD.",
-          "at": "2026-10-16T08:46:43.879Z"
-        },
-        {
-          "id": "fb485c3a-fe74-459d-b762-d01d9baf247d",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:47:03.452Z"
-        },
-        {
-          "id": "8847eb1e-815d-4199-80a1-dfb329414552",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 1.",
-          "at": "2026-10-16T08:47:03.455Z"
-        },
-        {
-          "id": "0535c3fb-0346-4864-a410-4492431978b6",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "failed",
-          "summary": "Attempt 1: Unsupported fit claim in .pdp.bullets.3. State the supplied feature without promising fit. Unsupported product fact “personalized” in .pdp.description.2.",
-          "at": "2026-10-16T08:47:03.455Z"
-        },
-        {
-          "id": "844f0554-d2a8-44dc-aff0-ba6bfe614ec9",
-          "tool": "content_repair",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Corrected 2 rejected fields; other draft fields were preserved.",
-          "at": "2026-10-16T08:47:04.542Z"
-        },
-        {
-          "id": "44c74f66-dbf4-4433-9181-9ec038a2d607",
-          "tool": "content_schema",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Model sections: pdp, ads, shorts, thumbnails, listingCheck, margin; FAQ 5; ad headlines 3; scenes 4.",
-          "at": "2026-10-16T08:47:04.542Z"
-        },
-        {
-          "id": "5e11f156-5cf1-4ff5-b008-da6203c00955",
-          "tool": "generate_bundle",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Live model produced package content; attempt 2.",
-          "at": "2026-10-16T08:47:04.542Z"
-        },
-        {
-          "id": "485c85af-5ca8-4469-8370-39762619eff9",
-          "tool": "quality_check",
-          "method": "LOCAL",
-          "path": "",
-          "status": "passed",
-          "summary": "Attempt 2: source facts and risky-claim checks passed.",
-          "at": "2026-10-16T08:47:04.543Z"
-        },
-        {
-          "id": "f0b4ac8a-707e-43a9-9351-784863362d66",
-          "tool": "deliver",
-          "method": "LOCAL",
-          "path": "",
-          "status": "completed",
-          "summary": "Paid package is ready for Markdown and JSON download.",
-          "at": "2026-10-16T08:47:04.543Z"
-        }
       ]
     }
   ],
   "checks": [
-    "real Standard guest-card Sandbox approval and capture",
-    "live Nebius content and QC",
-    "Markdown download",
-    "real full Sandbox refund after two forced QC failures",
-    "stale paid receipt cannot regenerate or refund delivery",
-    "signed ledger survives reload",
-    "mobile overflow"
+    "Three consecutive unique Sandbox orders/captures and live deliveries: English, English, Korean",
+    "Generation completed from actual signature-verified webhook before any fulfill replay",
+    "Full customer-copy review against supplied source facts passed",
+    "Live rejected-field corrections and any source-rule repairs disclosed",
+    "Actual browser Markdown download and JSON export passed",
+    "Forced two-check failure: actual full USD39 Sandbox refund completed",
+    "Refunded content null; Markdown and JSON downloads blocked with409",
+    "Stale paid receipts preserve final bundle/refund ID and model-call count",
+    "Authoritative ledger reload, delayed initial-ledger race regression and mobile overflow passed",
+    "Direct PayPal API GET independently confirms all final order/capture/refund statuses",
+    "Original production signed webhook listener logs saved per run",
+    "Completed durable job claim has no expiry attribute"
+  ],
+  "nodeTests": {
+    "passed": 83,
+    "failed": 0
+  },
+  "productionBuild": "passed on pilot",
+  "rawEvidence": "hackathons/paypal/samples/raw/round8 (outside repository)",
+  "screenProvenance": {
+    "01-studio.png": "Round8 initial production screen",
+    "02-quote.png": "Original pre-payment quote, approved English round5 run1",
+    "03-sandbox-checkout.png": "Actual guest checkout, round8 English run1",
+    "03-delivery.png": "Approved live English round5 run1; native read-only recapture",
+    "04-refund-quote.png": "Original pre-payment forced-refund quote, round8 run4",
+    "04-refund.png": "Actual completed refund, round8 run4; native read-only recapture",
+    "05-sandbox-checkout.png": "Actual guest checkout, round8 refund run4",
+    "05-ledger.png": "All four distinct round8 captures, three deliveries and one refund",
+    "06-mobile.png": "Actual production browser, 390x844",
+    "07-payment-timeline.png": "Actual payment and signed webhook, approved English round5 run1",
+    "08-refund-timeline.png": "Actual refund ID and signed refund webhook, round8 run4"
+  },
+  "earlierEnglishFilmSource": {
+    "jobId": "64c8b857-50dc-401d-b1c1-05fe4217123b",
+    "paypalOrderId": "72859734U2096112L",
+    "captureId": "6JL20882G3590781T",
+    "review": "Full final copy reviewed; direct PayPal GET independently reverified"
+  },
+  "limits": [
+    "Sandbox only",
+    "Specified pattern checks do not certify every possible factual claim",
+    "Interrupted generation requires seller review"
   ]
 }

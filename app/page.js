@@ -243,15 +243,22 @@ async function api(path, options = {}) {
   catch { throw new Error("The studio could not read the server response. Please try again."); }
   if (!response.ok) throw new Error(result.error?.message || result.error || "Please try again.");
   if (result.order) remember(result.order);
-  for (const order of result.orders || []) remember(order);
+  if (path !== "/api/ledger") for (const order of result.orders || []) remember(order);
   return result;
 }
 async function ledger() {
-  const tokens = savedJobs().map(job => job.jobToken);
+  const submitted = savedJobs();
+  const submittedIds = new Set(submitted.map(job => job.id));
+  const tokens = submitted.map(job => job.jobToken);
   if (!tokens.length) return { orders: [] };
   const result = await api("/api/ledger", { method: "POST", body: JSON.stringify({ tokens }) });
-  localStorage.setItem(RECEIPTS, JSON.stringify(result.orders || []));
-  return result;
+  // A quote created while this request was pending was never submitted. Preserve
+  // it, while letting the server remove invalid receipts from the submitted set.
+  const added = savedJobs().filter(job => !submittedIds.has(job.id));
+  const orders = [...(result.orders || []), ...added]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
+  localStorage.setItem(RECEIPTS, JSON.stringify(orders));
+  return { ...result, orders };
 }
 async function downloadFile(order, format) {
   const response = await fetch(`/api/orders/${order.id}/download?format=${format}`, { headers: { "x-job-token": order.jobToken } });
@@ -437,6 +444,25 @@ export default function Home() {
       })
       .catch((err) => setError(err.message));
   }, []);
+  useEffect(() => {
+    if (simulated || !order?.id || !["paid", "generating"].includes(order.status)) return;
+    let stopped = false;
+    let pending = false;
+    const timer = setInterval(async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const data = await api(`/api/orders/${order.id}`);
+        if (!stopped) {
+          setOrder(data.order);
+          if (!["paid", "generating"].includes(data.order.status)) await refreshOrders();
+        }
+      } catch (err) {
+        if (!stopped) setError(err.message || "Could not check the saved result.");
+      } finally { pending = false; }
+    }, 3000);
+    return () => { stopped = true; clearInterval(timer); };
+  }, [order?.id, order?.status, simulated]);
   async function run(label, work) {
     setBusy(label);
     setError("");

@@ -33,7 +33,9 @@ const context = await browser.newContext({
 const page = await context.newPage();
 page.setDefaultTimeout(120000);
 const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
+page.on("pageerror", (error) => {
+  if (new URL(page.url()).origin === new URL(baseURL).origin) errors.push(error.message);
+});
 async function receiptHeaders(path) {
   const id = path.match(/orders\/([^/?]+)/)?.[1];
   if (!id || new URL(page.url()).origin !== new URL(baseURL).origin) return {};
@@ -271,7 +273,8 @@ async function captureSandbox(page, context, config) {
     await page.waitForTimeout(1200);
     await page.screenshot({path: `${output}/${name}.png`});
   };
-  async function guestPay(index) {
+  async function guestPay(index, expectedId) {
+    const selectedId = expectedId || (await receipts())[0].id;
     const generator = await browser.newPage();
     let fixture;
     try {
@@ -315,9 +318,10 @@ async function captureSandbox(page, context, config) {
     }
     const guestChoice=page.locator('label[for="onboardOptionGuest"]');
     if (await guestChoice.count()) await guestChoice.click();
-    await screenshot(`0${index}-sandbox-checkout`);
     const closeCookies=page.getByRole("button",{name:/^Close$/});
     if (await closeCookies.isVisible().catch(()=>false)) await closeCookies.click();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await screenshot(`0${index}-sandbox-checkout`);
     console.log("Sandbox payment buttons:",await page.getByRole("button").allTextContents());
     const guestButton=page.getByRole("button",{name:"Pay now as guest",exact:true});
     if (await guestButton.isVisible().catch(()=>false)) await guestButton.click({timeout:15000});
@@ -338,15 +342,121 @@ async function captureSandbox(page, context, config) {
       await page.screenshot({path:`${output}/sandbox-checkout-error.png`});
       throw error;
     }
-    await page.getByRole("button", {name:"Create my content bundle",exact:true}).waitFor({timeout:120000});
+    await page.waitForFunction(id => JSON.parse(localStorage.getItem("paid-agent-studio-receipts-v2") || "[]").some(job => job.id === id && job.captureId), selectedId, {timeout:120000});
     const jobs = await receipts();
-    const paid = jobs.find(job=>job.status === "paid");
+    const paid = jobs.find(job=>job.id === selectedId && job.captureId);
     assert.ok(paid?.captureId, "Real PayPal Sandbox capture required");
+    assert.equal(paid.id, selectedId, "Capture must belong to the newly quoted job");
     assert.equal(paid.paymentMode, "sandbox");
     console.log(JSON.stringify({stage:"captured",jobId:paid.id,paypalOrderId:paid.paypalOrderId,captureId:paid.captureId}));
     await context.storageState({path:"/tmp/paypal-live-state.json"});
     await chmod("/tmp/paypal-live-state.json",0o600);
     return paid;
+  }
+  if (process.env.GATE === "1") {
+    await runProductionGate();
+    return;
+  }
+  async function runProductionGate() {
+    const raw = process.env.RAW_DIR;
+    assert.ok(raw, "RAW_DIR must point outside the repository");
+    await mkdir(raw, {recursive:true});
+    const runs = [];
+    const cases = [
+      {name:"run-1-english",language:"English",scenario:"standard"},
+      {name:"run-2-english",language:"English",scenario:"standard"},
+      {name:"run-3-korean",language:"Korean",scenario:"standard"},
+      {name:"run-4-refund",language:"English",scenario:"guarantee"},
+    ];
+    const checkpoint = () => writeFile(`${raw}/gate.json`, JSON.stringify({testedAt:new Date().toISOString(),productionUrl:baseURL,paymentMode:"sandbox",automatedFlowPassed:runs.length===4 && runs.every(r=>r.passed),contentReview:"Read all raw copy separately; automated flow success does not establish the content or video gate.",runs},null,2)+"\n");
+    for (const test of cases) {
+      console.log(JSON.stringify({stage:"start",...test}));
+      const korean = test.language === "Korean";
+      await page.getByLabel("What are we launching?").fill(korean ? "포르마 캔버스 토트백" : "Forma everyday tote");
+      await page.getByLabel("Just the facts").fill(korean ? "면 100% 캔버스; 용량 12 L; 안쪽 주머니; 길이 조절 스트랩; 샌드 색상; 손세탁만 가능." : "100% cotton canvas; 12 L capacity; inner pocket; adjustable strap; sand color; hand wash only.");
+      await page.getByRole("combobox").selectOption(test.language);
+      await page.getByRole("checkbox",{name:/Try the refund guarantee/}).setChecked(test.scenario === "guarantee");
+      const quoteResponse = page.waitForResponse(r => r.url() === `${baseURL}/api/orders` && r.request().method() === "POST");
+      await page.getByRole("button",{name:"Get my quote",exact:true}).click();
+      const quote = (await (await quoteResponse).json()).order;
+      assert.ok(quote?.id, "The quote must come from this POST response");
+      await page.getByText("Quote ready",{exact:true}).waitFor();
+      await page.waitForLoadState("networkidle");
+      assert.equal(quote.quoteMode,"live");
+      assert.ok(runs.every(run => run.jobId !== quote.id), "Each case needs a distinct new job");
+      await screenshot(`${test.name}-quote`);
+      const paid=await guestPay(runs.length+1, quote.id);
+      assert.ok(runs.every(run => run.paypalOrderId !== paid.paypalOrderId && run.captureId !== paid.captureId), "Each case needs a distinct real Sandbox order and capture");
+      const request = async (verb, token=paid.jobToken, suffix="", data) => {
+        const r=await context.request[verb](`${baseURL}/api/orders/${paid.id}${suffix}`,{headers:{"x-job-token":token},...(data?{data}:{})});
+        const body=await r.json();
+        assert.ok(r.ok(),`Order ${r.status()}: ${body.error}`);
+        return body.order;
+      };
+      // This gate never calls fulfill until the real signed webhook has completed
+      // delivery/refund. A browser button cannot mask a broken webhook handoff.
+      let order;
+      const deadline=Date.now()+240000;
+      do {
+        order=await request("get");
+        if (["delivered","refunded","refund_failed"].includes(order.status)) break;
+        await page.waitForTimeout(3000);
+      } while (Date.now()<deadline);
+      const {jobToken,...safe}=order;
+      assert.equal(order.id, quote.id);
+      assert.equal(order.language, test.language);
+      assert.equal(order.facts, quote.facts);
+      await writeFile(`${raw}/${test.name}.json`,JSON.stringify({testedAt:new Date().toISOString(),input:{productName:quote.productName,facts:quote.facts,language:test.language},...safe},null,2)+"\n");
+      const webhook=order.timeline.filter(e=>e.tool==="verify_webhook");
+      await writeFile(`${raw}/${test.name}-webhook.json`,JSON.stringify(webhook,null,2)+"\n");
+      assert.ok(webhook.length,"Actual signature-verified listener receipt required");
+      assert.equal(order.status,test.scenario === "guarantee" ? "refunded" : "delivered",JSON.stringify(order.qcAttempts));
+      assert.equal(order.aiMode,"live");
+      assert.ok(order.llmUsage.some(u=>u.step==="content"));
+      const replay=await request("post",paid.jobToken,"/fulfill",{});
+      assert.equal(replay.status,order.status);
+      assert.deepEqual(replay.bundle,order.bundle);
+      assert.equal(replay.llmUsage.length,order.llmUsage.length);
+      assert.equal(replay.refundId,order.refundId);
+      if(test.scenario === "standard") {
+        for(const format of ["markdown","json"]) {
+          const r=await context.request.get(`${baseURL}/api/orders/${paid.id}/download?format=${format}`,{headers:{"x-job-token":jobToken}});
+          assert.equal(r.status(),200);
+          await writeFile(`${raw}/${test.name}.${format === "markdown" ? "md" : "bundle.json"}`,await r.text());
+        }
+      } else {
+        assert.ok(order.refundId);
+        assert.equal(order.refundedAmount,order.capturedAmount);
+        assert.equal(order.qcAttempts.length,2);
+        assert.ok(order.qcAttempts.every(a=>!a.passed));
+      }
+      // Refresh the real ledger and open its stored result for visible captures.
+      await page.reload();
+      await page.getByRole("button",{name:/^Order ledger/}).click();
+      await page.getByRole("row").filter({hasText:paid.id}).getByRole("button",{name:/^Open /}).click();
+      const heading=page.getByText(test.scenario === "guarantee" ? "The work didn’t pass. Your payment came back." : "Quality checks passed. Your launch bundle is ready.",{exact:true});
+      await heading.waitFor();
+      await heading.scrollIntoViewIfNeeded();
+      await screenshot(`${test.name}-result`);
+      if(test.scenario === "standard") {
+        const event=page.waitForEvent("download");
+        await page.getByRole("link",{name:"Markdown",exact:true}).click();
+        assert.match((await event).suggestedFilename(),/\.md$/);
+      }
+      const timeline=page.locator(".workflow-panel");
+      await timeline.scrollIntoViewIfNeeded();
+      await screenshot(`${test.name}-timeline`);
+      runs.push({name:test.name,language:test.language,passed:true,jobId:order.id,paypalOrderId:order.paypalOrderId,captureId:order.captureId,refundId:order.refundId,status:order.status,aiMode:order.aiMode,webhookEvents:webhook.map(e=>e.summary),qcAttempts:order.qcAttempts});
+      await checkpoint();
+      console.log(JSON.stringify({stage:"passed",...runs.at(-1)}));
+      await page.goto(baseURL);
+      await page.waitForLoadState("networkidle");
+    }
+    assert.deepEqual(errors,[],"No browser errors");
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await screenshot("gate-mobile");
+    console.log("Production payment-flow checks passed: three consecutive live deliveries and a real refund. Full content and video gate requires separate review.");
   }
   const record = safe => ({jobId:safe.id,paypalOrderId:safe.paypalOrderId,captureId:safe.captureId,refundId:safe.refundId,status:safe.status,quoteMode:safe.quoteMode,aiMode:safe.aiMode,llmUsage:safe.llmUsage,qcAttempts:safe.qcAttempts,timeline:safe.timeline});
   if (process.env.RESUME_CHECKOUT === "1") {

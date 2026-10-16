@@ -922,6 +922,226 @@ test("Korean no-key demo still delivers clearly labeled source-fact fixtures", a
   assert.ok(result.bundle.pdp.description.includes("면 캔버스"));
 });
 
+function retailCopy(language = "English") {
+  const korean = language === "Korean";
+  return {
+    pdp: { headline: korean ? "캔버스 토트백" : "Canvas tote",
+      subheadline: korean ? "면 캔버스와 길이 조절 스트랩" : "Cotton canvas with an adjustable strap",
+      bullets: [korean ? "안쪽 주머니" : "Inner pocket"],
+      description: [korean ? "스트랩 길이를 조절할 수 있어요." : "The strap length is adjustable."],
+      faq: [{ question: korean ? "세탁은 어떻게 하나요?" : "How should I clean it?", answer: korean ? "손세탁만 해 주세요." : "Hand wash only." }] },
+    ads: { headlines: korean ? ["캔버스 토트백", "길이 조절 스트랩", "안쪽 주머니"] : ["Canvas tote", "Adjustable strap", "Inner pocket"],
+      bodies: [korean ? "안쪽 주머니에 나누어 담을 수 있어요." : "Use the inner pocket to organize what you carry."], keywords: [korean ? "토트백" : "Tote"] },
+    shorts: { hook: korean ? "안쪽 주머니 살펴보기" : "Meet the inner pocket", cta: korean ? "상품 자세히 보기" : "View product details.",
+      scenes: [{ time: "0-3s", visual: korean ? "안쪽 주머니 클로즈업" : "Close-up of the inner pocket",
+        voiceover: korean ? "안쪽 주머니에 나누어 담을 수 있어요." : "Use the inner pocket to organize what you carry.",
+        caption: korean ? "안쪽 주머니" : "Inner pocket" }] },
+  };
+}
+const toteFacts = "Cotton canvas; inner pocket; adjustable strap; hand wash only; 면 캔버스; 안쪽 주머니; 길이 조절 스트랩; 손세탁만 가능.";
+
+test("live QC rejects invented written pocket counts while accepting explicitly supplied counts", () => {
+  for (const [language, claims] of [
+    ["Korean", ["안쪽 주머니가 하나 있습니다.", "안쪽 주머니가 한 개 있어요.", "한 개의 안쪽 주머니가 있어요."]],
+    ["English", ["The tote has one inner pocket.", "The tote has a single pocket.", "The inner pocket count is one."]],
+  ]) {
+    const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language };
+    for (const claim of claims) {
+      const bundle = retailCopy(language); bundle.pdp.description[0] = claim;
+      assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported pocket count")), claim);
+      assert.equal(qualityCheck(bundle, { ...order, facts: toteFacts + " One inner pocket; 안쪽 주머니 한 개." }).passed, true, claim);
+    }
+  }
+  const bundle = retailCopy(); bundle.pdp.description[0] = "Organize items with the inner pocket, one-time setup instructions included.";
+  assert.ok(!qualityCheck(bundle, { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live" }).issues.some(issue => issue.includes("pocket count")));
+});
+
+test("live narration uses spoken sentences while captions can remain feature labels", () => {
+  for (const [language, fragments] of [["English", ["Adjustable strap", "Inner pocket", "Cotton canvas construction"]], ["Korean", ["길이 조절 스트랩", "안쪽 주머니", "면 캔버스 소재"]]]) {
+    const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language };
+    const bundle = retailCopy(language);
+    assert.equal(qualityCheck(bundle, order).passed, true);
+    for (const fragment of fragments) {
+      const draft = structuredClone(bundle); draft.shorts.scenes[0].voiceover = fragment;
+      assert.ok(qualityCheck(draft, order).issues.some(issue => issue.includes("sentence") && issue.includes(".voiceover")), fragment);
+      assert.equal(qualityCheck(draft, { ...order, aiMode: "demo" }).passed, true);
+    }
+  }
+  const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language: "English" };
+  for (const sentence of ["Give the little things their own place.", "Put items in the inner pocket.", "Set the strap length.", "Show the inner pocket.", "Start with cotton canvas.", "Pick the canvas tote.", "It's cotton canvas.", "There’s an inner pocket.", "You'll find an inner pocket."]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].voiceover = sentence;
+    assert.equal(qualityCheck(bundle, order).passed, true, sentence);
+  }
+});
+
+test("source-supported pocket organization and strap adjustment pass while fit and comfort inventions fail", () => {
+  for (const language of ["English", "Korean"]) {
+    const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language };
+    assert.equal(qualityCheck(retailCopy(language), order).passed, true);
+    for (const claim of language === "Korean" ? ["편안한 착용감을 느낄 수 있어요.", "체형에 맞출 수 있어요."] : ["The strap offers a customized fit.", "The strap provides comfort."]) {
+      const bundle = retailCopy(language); bundle.ads.bodies[0] = claim;
+      assert.equal(qualityCheck(bundle, order).passed, false, claim);
+    }
+  }
+});
+
+test("QC rejects Korean comfort durability and texture synonyms unless supplied by the seller", () => {
+  const order = { productName: "캔버스 토트백", facts: toteFacts, packageId: "launch", aiMode: "live", language: "Korean" };
+  for (const [section, claim] of [
+    ["description", "편하게 사용할 수 있어요."],
+    ["headline", "편하게 드는 토트백"],
+    ["description", "사용하기 편하다는 점이 특징입니다."],
+    ["description", "편리하게 사용할 수 있어요."],
+    ["voiceover", "내구성을 갖춘 소재입니다."],
+    ["voiceover", "자연스러운 질감을 느낄 수 있어요."],
+  ]) {
+    const bundle = retailCopy("Korean");
+    if (section === "description") bundle.pdp.description[0] = claim;
+    else if (section === "headline") bundle.ads.headlines[0] = claim;
+    else bundle.shorts.scenes[0].voiceover = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported product fact")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: toteFacts + " " + claim }).passed, true, claim);
+  }
+});
+
+test("QC rejects invented hand-wash preservation and easy-care purposes using the matching source clause", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts + " Adjustable strap for length selection.", packageId: "launch", aiMode: "live", language: "English" };
+  for (const claim of ["Hand wash only to keep canvas fresh.", "Hand wash only to keep the canvas in good condition.", "Hand-washing only for fabric preservation.", "Hand wash only so the canvas stays fresh.", "Hand wash only, keeping the canvas fresh.", "Care is simple with hand wash only.", "Simple care with hand wash only.", "Hand washing is easy.", "Easy washing instructions."]) {
+    const bundle = retailCopy(); bundle.pdp.description[0] = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => /care purpose|care claim/.test(issue)), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " " + claim }).passed, true, claim);
+  }
+  const bundle = retailCopy(); bundle.pdp.description[0] = "Hand wash only. Use the inner pocket for organization.";
+  assert.equal(qualityCheck(bundle, order).passed, true);
+  bundle.pdp.description[0] = "Care is simple with hand wash only.";
+  assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " Simple strap design." }).passed, false);
+});
+
+test("QC catches observed Korean fit claims and misspelled visual instructions", () => {
+  const order = { productName: "캔버스 토트백", facts: toteFacts, packageId: "launch", aiMode: "live", language: "Korean" };
+  for (const claim of ["길이 조절 스트랩으로 원하는 핏 선택", "길이 조절 스트랩으로 원하는 핏을 선택할 수 있습니다."]) {
+    const bundle = retailCopy("Korean"); bundle.pdp.bullets[0] = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported fit claim")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " 원하는 핏 선택 가능." }).passed, true);
+  }
+  const bundle = retailCopy("Korean"); bundle.shorts.scenes[0].visual = "캔버스 소재 질감 특업";
+  assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Invalid shot description")));
+  bundle.shorts.scenes[0].visual = "캔버스 소재 클로즈업";
+  assert.equal(qualityCheck(bundle, order).passed, true);
+});
+
+test("QC rejects unsupported named objects placed in a pocket visual", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language: "English" };
+  for (const prop of ["a phone", "keys", "a wallet"]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].visual = `Hand placing ${prop} into the inner pocket`;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported pocket fit scene")), prop);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + ` Inner pocket holds ${prop}.` }).passed, true, prop);
+    bundle.shorts.scenes[0].visual = `Product beside ${prop}`;
+    assert.equal(qualityCheck(bundle, order).passed, true, prop);
+  }
+});
+
+test("QC rejects unsupported Korean style variety claims", () => {
+  const order = { productName: "캔버스 토트백", facts: toteFacts, packageId: "launch", aiMode: "live", language: "Korean" };
+  for (const claim of ["길이 조절 스트랩으로 다양한 연출이 가능합니다.", "길이 조절 스트랩으로 다양한 스타일을 만들 수 있어요."]) {
+    const bundle = retailCopy("Korean"); bundle.pdp.description[0] = claim; bundle.shorts.scenes[0].voiceover = claim;
+    const result = qualityCheck(bundle, order);
+    assert.ok(result.issues.some(issue => issue.includes("Unsupported product fact") && issue.includes(".description")), claim);
+    assert.ok(result.issues.some(issue => issue.includes("Unsupported product fact") && issue.includes(".voiceover")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " " + claim }).passed, true, claim);
+  }
+});
+
+test("QC attributes organization to the pocket rather than capacity alone", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts + " 12 L capacity.", packageId: "launch", aiMode: "live", language: "English" };
+  for (const claim of ["A 12 L capacity keeps your essentials organized.", "The capacity helps keep items organized."]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].voiceover = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported capacity organization")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " " + claim }).passed, true);
+  }
+  for (const claim of ["Use the inner pocket to keep items organized.", "With a 12 L capacity, the inner pocket helps keep items organized.", "The capacity is 12 L. Use the inner pocket to organize items."]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].voiceover = claim;
+    assert.equal(qualityCheck(bundle, order).passed, true, claim);
+  }
+});
+
+test("QC rejects invented physical care tags while allowing staged care cards and captions", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language: "English" };
+  for (const visual of ["Tote resting on a surface with the hand wash only care tag visible", "Close-up of the attached hand-wash label", "Show the product label reading hand wash only"]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].visual = visual;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported physical care tag")), visual);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " Attached hand wash care label." }).passed, true, visual);
+  }
+  for (const visual of ["Product beside a Hand wash only care card", "Product with a Hand wash only caption", "Product beside a separate care card"]) {
+    const bundle = retailCopy(); bundle.shorts.scenes[0].visual = visual;
+    assert.equal(qualityCheck(bundle, order).passed, true, visual);
+  }
+});
+
+test("QC catches unnatural volume-of-capacity wording while preserving natural capacity sentences", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts + " 12 L capacity.", packageId: "launch", aiMode: "live", language: "English" };
+  for (const answer of ["The tote holds 12 liters of capacity.", "It holds 12 L of capacity."]) {
+    const bundle = retailCopy(); bundle.pdp.faq[0].answer = answer;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unnatural volume wording")), answer);
+  }
+  for (const answer of ["The tote holds 12 liters.", "The tote has a 12 L capacity."]) {
+    const bundle = retailCopy(); bundle.pdp.faq[0].answer = answer;
+    assert.equal(qualityCheck(bundle, order).passed, true, answer);
+  }
+});
+
+test("QC catches repeated standalone material facts across paraphrases but permits multifeature paragraphs", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts + " 100% cotton canvas; 12 L capacity; sand color.", packageId: "launch", aiMode: "live", language: "English" };
+  const bundle = retailCopy();
+  bundle.pdp.description = ["Crafted from 100% cotton canvas.", "The tote holds 12 liters.", "The material is 100% cotton canvas."];
+  const result = qualityCheck(bundle, order);
+  assert.ok(result.issues.some(issue => issue.includes("Repeated description in .pdp.description.2")));
+  assert.ok(!result.issues.some(issue => issue.includes(".pdp.description.0") || issue.includes(".pdp.description.1")));
+  bundle.pdp.description[2] = "Use the inner pocket to keep items separate.";
+  assert.equal(qualityCheck(bundle, order).passed, true);
+  for (const paragraph of ["The material is 100% cotton canvas with an inner pocket.", "The 100% cotton canvas tote has a 12 L capacity.", "The material is 100% cotton canvas in sand."]) {
+    bundle.pdp.description[2] = paragraph;
+    assert.equal(qualityCheck(bundle, order).passed, true, paragraph);
+  }
+});
+
+test("QC rejects invented strap slider hardware unless explicitly supplied", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts, packageId: "launch", aiMode: "live", language: "English" };
+  const bundle = retailCopy(); bundle.shorts.scenes[0].visual = "Adjusting the strap slider to a new length";
+  assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported product fact “slider”")));
+  assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " Strap slider." }).passed, true);
+  bundle.shorts.scenes[0].visual = "Adjusting the strap length";
+  assert.equal(qualityCheck(bundle, order).passed, true);
+});
+
+test("QC rejects unsupported Korean wardrobe versatility while preserving plain color facts", () => {
+  const order = { productName: "캔버스 토트백", facts: toteFacts + " 샌드 색상.", packageId: "launch", aiMode: "live", language: "Korean" };
+  for (const claim of ["샌드 색상으로 다양한 코디에 매치됩니다.", "샌드 색상은 여러 옷에 매치할 수 있어요.", "샌드 색상은 어떤 스타일에도 잘 어울립니다.", "샌드 색상은 모든 옷에 어울립니다."]) {
+    const bundle = retailCopy("Korean"); bundle.shorts.scenes[0].voiceover = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported wardrobe styling claim")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " " + claim }).passed, true, claim);
+  }
+  for (const sentence of ["색상은 샌드예요.", "샌드 색상으로 만들었어요."]) {
+    const bundle = retailCopy("Korean"); bundle.shorts.scenes[0].voiceover = sentence;
+    assert.equal(qualityCheck(bundle, order).passed, true, sentence);
+  }
+  const bundle = retailCopy("Korean"); bundle.shorts.scenes[0].voiceover = "어떤 옷에도 어울립니다.";
+  assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " 여러 옷에 매치할 수 있어요." }).passed, false);
+});
+
+test("QC rejects unsupported daily everyday and universal essentials sets without rejecting everyday use", () => {
+  const order = { productName: "Canvas tote", facts: toteFacts + " 12 L capacity.", packageId: "launch", aiMode: "live", language: "English" };
+  for (const claim of ["12 L capacity for everyday essentials", "For every-day essentials", "Room for every day essentials", "For daily essentials", "For day-to-day essentials", "For day to day essentials", "For all your essentials", "For all of your essentials"]) {
+    const bundle = retailCopy(); bundle.ads.headlines[0] = claim;
+    assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Unsupported essentials set claim")), claim);
+    assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + " " + claim }).passed, true, claim);
+  }
+  for (const phrase of ["Everyday use", "Day-to-day use", "Use the inner pocket to organize small items."]) {
+    const bundle = retailCopy(); bundle.ads.headlines[0] = phrase;
+    assert.equal(qualityCheck(bundle, order).passed, true, phrase);
+  }
+});
+
 test("stale capture receipt after accepted delivery recovers the result without recapturing", async () => {
   const order = await sandboxOrder();
   const calls = mockPayPal(async () => simulatedOrder(order, true));
@@ -955,6 +1175,7 @@ test("a changed remote capture cannot replace the capture bound into a signed re
 test("live corrective generation changes only rejected copy fields and preserves the approved draft", async () => {
   const seed = await paid();
   const original = (await fulfillOrder(seed.id, session)).bundle;
+  for (const scene of original.shorts.scenes) scene.voiceover = "The body is stainless steel.";
   const order = await paid();
   const stored = await getValue("order:"+order.id);
   stored.aiMode = "live";
@@ -979,6 +1200,7 @@ test("live corrective generation changes only rejected copy fields and preserves
 
 test("one correction failure waits for the other model requests before completing the job", async () => {
   const seed=await paid(); const draft=(await fulfillOrder(seed.id,session)).bundle;
+  for (const scene of draft.shorts.scenes) scene.voiceover = "The body is stainless steel.";
   draft.pdp.description[0]="Comfortable."; draft.ads.bodies[0]="Roomy interior.";
   const order=await paid(); const stored=await getValue("order:"+order.id);
   stored.aiMode="live"; await saveOrder(stored); process.env.LLM_API_KEY="test-correction-key";
@@ -997,4 +1219,69 @@ test("one correction failure waits for the other model requests before completin
   assert.equal((await getValue("order:"+order.id)).status,"generating");
   release();
   assert.equal((await result).status,"delivered");
+});
+
+test("a draft with many rejected fields receives bounded corrections instead of an immediate refund", async () => {
+  const seed = await paid();
+  const draft = (await fulfillOrder(seed.id, session)).bundle;
+  for (const scene of draft.shorts.scenes) scene.voiceover = "The body is stainless steel.";
+  const approved = structuredClone(draft);
+  const fields = ["pdp.subheadline", "pdp.bullets.0", "pdp.bullets.1", "pdp.description.0", "pdp.description.1", "pdp.description.2", "ads.headlines.0", "ads.headlines.1", "ads.bodies.0", "ads.bodies.1"];
+  for (const path of fields) {
+    const keys = path.split("."), last = keys.pop();
+    keys.reduce((value, key) => value[key], draft)[last] = "Comfortable for all-day use.";
+  }
+  const order = await paid(), stored = await getValue("order:" + order.id);
+  stored.aiMode = "live";
+  await saveOrder(stored);
+  process.env.LLM_API_KEY = "test-correction-key";
+  let calls = 0, active = 0, maximum = 0;
+  mock.method(globalThis, "fetch", async (_url, options) => {
+    if (++calls === 1) return response({ choices: [{ message: { content: JSON.stringify(draft) } }] });
+    const field = JSON.parse(JSON.parse(options.body).messages[1].content).field;
+    const text = field.slice(1).split(".").reduce((value, key) => value[key], approved);
+    maximum = Math.max(maximum, ++active);
+    await new Promise(resolve => setImmediate(resolve));
+    active--;
+    return response({ choices: [{ message: { content: JSON.stringify({ text }) } }] });
+  });
+  const delivered = await fulfillOrder(order.id, session);
+  assert.equal(delivered.status, "delivered");
+  assert.equal(delivered.qcAttempts.length, 2);
+  assert.equal(calls, fields.length + 1);
+  assert.ok(maximum <= 4, "Corrective model requests must stay bounded");
+  assert.equal(active, 0, "All corrections finish before delivery");
+  assert.equal(delivered.refundId, null);
+});
+
+test("live QC catches repeated description paragraphs without rejecting short distinct features", () => {
+  const order = {productName:"Canvas tote", facts:toteFacts, packageId:"launch", aiMode:"live", language:"English"};
+  const bundle = retailCopy();
+  bundle.pdp.description = ["The strap length is adjustable.", "THE STRAP LENGTH IS ADJUSTABLE!"];
+  assert.ok(qualityCheck(bundle, order).issues.some(issue => issue.includes("Repeated description") && issue.includes(".pdp.description.1")));
+  bundle.pdp.description[1] = "Use the inner pocket to keep items separate.";
+  assert.equal(qualityCheck(bundle, order).passed, true);
+});
+
+test("unsafe live corrections use a disclosed source rule and preserve other generated fields", async () => {
+  const facts = "inner pocket; adjustable strap; 12 L capacity";
+  const seed = await paid({ facts });
+  const original = (await fulfillOrder(seed.id, session)).bundle;
+  for (const scene of original.shorts.scenes) scene.voiceover = "The product has an inner pocket.";
+  const draft = structuredClone(original);
+  draft.pdp.description[0] = "A comfortable interior.";
+  const order = await paid({ facts }), stored = await getValue("order:" + order.id);
+  stored.aiMode = "live";
+  await saveOrder(stored);
+  process.env.LLM_API_KEY = "test-correction-key";
+  let calls = 0;
+  mock.method(globalThis, "fetch", async () => response({ choices: [{ message: { content: JSON.stringify(++calls === 1 ? draft : { text: "Comfort for your daily essentials." }) } }] }));
+  const result = await fulfillOrder(order.id, session);
+  assert.equal(result.status, "delivered");
+  assert.equal(calls, 2, "Generation and live correction both ran");
+  assert.deepEqual(result.sourceRepairFields, [".pdp.description.0"]);
+  assert.match(result.aiNotice, /source-rule corrections/);
+  assert.equal(result.bundle.pdp.description[0], "Use the inner pocket to keep items separate.");
+  assert.deepEqual(result.bundle.ads, original.ads);
+  assert.equal(result.timeline.filter(event => event.tool === "source_repair").length, 1);
 });
