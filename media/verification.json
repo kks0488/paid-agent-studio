@@ -14,5 +14,30 @@
     "cross-origin rejection",
     "mobile overflow",
     "no page errors"
-  ]
+  ],
+  "baseUrl": "http://127.0.0.1:3187",
+  "hostedVerification": {
+    "testedAt": "2026-10-16T06:36:31.301Z",
+    "paymentMode": "simulated",
+    "aiMode": "demo",
+    "passed": true,
+    "checks": [
+      "visible quote/checkout/generate/download/refund UI flow",
+      "server pricing ignores client amount",
+      "capture to QC to delivery",
+      "Markdown + JSON export",
+      "two failed QC attempts trigger refund",
+      "refund replay idempotency",
+      "session isolation",
+      "cross-origin rejection",
+      "mobile overflow",
+      "no page errors"
+    ],
+    "baseUrl": "https://paid-agent-studio.vercel.app"
+  },
+  "capture": {
+    "desktop": "1920x1080",
+    "mobileWidth": 390,
+    "videoSeconds": 17.24
+  }
 }

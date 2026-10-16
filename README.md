@@ -78,7 +78,7 @@ PLAYWRIGHT_MODULE=/home/pilot/workspace/hackathons/qloo/node_modules/playwright/
   BASE_URL=http://127.0.0.1:3000 npm run test:e2e
 ```
 
-Verified on `pilot`: 33 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. See [`media/verification.json`](media/verification.json).
+Verified on `pilot`: 33 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. The same browser flow also passes against the public Vercel URL. See [`media/verification.json`](media/verification.json).
 
 `scripts/capture.mjs` checks the successful order, exports, automatic refund, ledger, session isolation, and mobile layout. Small real-app screenshots are in `media/`; larger raw browser video is stored in `~/projects/02_업무_자동화/upwork/hackathons/paypal/capture/` and is not committed. A public YouTube video under three minutes is still an owner/shared-video-kit step; this repository does not claim to have uploaded or submitted one.
 
