@@ -29,13 +29,14 @@ const context = await browser.newContext({
     : {}),
 });
 const page = await context.newPage();
+page.setDefaultTimeout(120000);
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 try {
   await page.goto(baseURL);
   await page.waitForLoadState("networkidle");
   if (process.env.VIDEO_DIR) await new Promise(resolve => setTimeout(resolve, 2000));
-  await page.screenshot({ path: `${output}/01-studio.png`, fullPage: true });
+  await page.screenshot({ path: `${output}/01-studio.png`, fullPage: false });
   const config = await (
     await context.request.get(`${baseURL}/api/config`)
   ).json();
@@ -72,6 +73,7 @@ try {
   const ordersResponse = await context.request.get(`${baseURL}/api/orders`);
   const quoted = (await ordersResponse.json()).orders[0];
   assert.equal(quoted.amount, "39.00");
+  if (process.env.EXPECT_LIVE === "1") assert.equal(quoted.quoteMode, "live", "Quote must use a live final answer");
   const early = await context.request.get(
     `${baseURL}/api/orders/${quoted.id}/download?format=json`,
   );
@@ -85,9 +87,13 @@ try {
   await page
     .getByRole("button", { name: "Simulate $39.00 payment", exact: true })
     .click();
+  const fulfillment = page.waitForResponse(response => response.url().endsWith(`/orders/${quoted.id}/fulfill`) && response.request().method() === "POST");
   await page
     .getByRole("button", { name: "Create my content bundle", exact: true })
     .click();
+  const fulfillmentBody = await (await fulfillment).json();
+  console.log(JSON.stringify({ fulfillment: fulfillmentBody.order?.status, qcAttempts: fulfillmentBody.order?.qcAttempts, llmUsage: fulfillmentBody.order?.llmUsage, error: fulfillmentBody.error }));
+  if (fulfillmentBody.order && fulfillmentBody.order.status !== "delivered") throw new Error(`Content order ended as ${fulfillmentBody.order.status}`);
   await page
     .getByText("Quality checks passed. Your launch bundle is ready.", {
       exact: true,
@@ -104,6 +110,7 @@ try {
     await context.request.get(`${baseURL}/api/orders/${quoted.id}`)
   ).json();
   assert.equal(delivered.status, "delivered");
+  if (process.env.EXPECT_LIVE === "1") assert.equal(delivered.aiMode, "live", "Delivered content must be live, not fallback");
   assert.equal(delivered.capturedAmount, "39.00");
   await page.getByRole("tab", { name: "Ad copy", exact: true }).click();
   await page.getByRole("tab", { name: "Shorts script", exact: true }).click();
@@ -178,7 +185,7 @@ try {
     .getByRole("heading", { name: "Order ledger", exact: true })
     .waitFor();
   if (process.env.VIDEO_DIR) await new Promise(resolve => setTimeout(resolve, 2000));
-  await page.screenshot({ path: `${output}/05-ledger.png`, fullPage: true });
+  await page.screenshot({ path: `${output}/05-ledger.png`, fullPage: false });
   await page.getByRole("button", { name: "Studio", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   if (process.env.VIDEO_DIR) await new Promise(resolve => setTimeout(resolve, 2000));
@@ -194,7 +201,11 @@ try {
       {
         testedAt: new Date().toISOString(),
         paymentMode: config.paymentMode,
-        aiMode: config.aiMode,
+        aiMode: delivered.aiMode,
+        quoteMode: quoted.quoteMode,
+        liveUsage: [...(delivered.llmUsage || []), ...(hostile.llmUsage || [])],
+        productionUrl: baseURL,
+        desktopViewport: { width: 1920, height: 1080 },
         passed: true,
         checks: [
           "visible quote/checkout/generate/download/refund UI flow",
@@ -214,6 +225,13 @@ try {
     ) + "\n",
   );
   console.log("Browser/API checks passed; screenshots captured.");
+} catch (error) {
+  const ordersResponse = await context.request.get(`${baseURL}/api/orders`);
+  const orders = ordersResponse.ok() ? (await ordersResponse.json()).orders : [];
+  await page.screenshot({ path: `${output}/03-delivery.png` });
+  await writeFile(`${output}/verification.json`, JSON.stringify({ testedAt: new Date().toISOString(), productionUrl: baseURL, passed: false, error: error.message, orders: orders.map(order => ({ status: order.status, quoteMode: order.quoteMode, aiMode: order.aiMode, aiNotice: order.aiNotice, qcAttempts: order.qcAttempts, llmUsage: order.llmUsage })) }, null, 2) + "\n");
+  console.log(JSON.stringify({ failed: true, orders: orders.map(order => ({ status: order.status, aiMode: order.aiMode, quoteMode: order.quoteMode, qcAttempts: order.qcAttempts, llmUsage: order.llmUsage })) }));
+  throw error;
 } finally {
   await context.close();
   await browser.close();

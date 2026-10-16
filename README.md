@@ -64,7 +64,7 @@ npm start
 # http://localhost:3000
 ```
 
-The app works without keys. Run `npm run dev` for development. Next.js reads `.env.local`; plain `npm test` uses isolated mocked payments and does not need credentials. The GitHub Actions definition runs tests, a production build, and secret scans. Activation is pending: the existing GitHub login lacks the `workflow` scope, so the public copy is preserved as [`.github/ci.yml`](.github/ci.yml). After the owner grants that permission, move it to `.github/workflows/ci.yml` and push. The local `ci-ready` branch also preserves the original active-path definition.
+The app works without keys. Run `npm run dev` for development. Next.js reads `.env.local`; plain `npm test` uses isolated mocked payments and does not need credentials. The [GitHub Actions workflow](.github/workflows/ci.yml) runs tests, a production build, and secret scans.
 
 ### Enable PayPal Sandbox
 
@@ -86,7 +86,7 @@ PLAYWRIGHT_MODULE=/home/pilot/workspace/hackathons/qloo/node_modules/playwright/
   BASE_URL=http://127.0.0.1:3000 npm run test:e2e
 ```
 
-Verified on `pilot`: 37 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. The same browser flow also passes against the public Vercel URL. See [`media/verification.json`](media/verification.json).
+Verified on `pilot`: 38 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. The same browser flow also passes against the public Vercel URL. See [`media/verification.json`](media/verification.json).
 
 `scripts/capture.mjs` checks the successful order, exports, automatic refund, ledger, session isolation, and mobile layout. Small real-app screenshots are in `media/`; larger raw browser video is stored in `~/projects/02_업무_자동화/upwork/hackathons/paypal/capture/` and is not committed. A public YouTube video under three minutes is still an owner/shared-video-kit step; this repository does not claim to have uploaded or submitted one.
 
@@ -103,7 +103,7 @@ Verified on `pilot`: 37 Node tests pass, the production build passes, and both v
 
 ## What was built during the hackathon
 
-Built in October 2026: the Studio interface, package quoting, guarded agent tool orchestration, PayPal create/get/capture/refund adapters, JavaScript SDK checkout integration, verified webhooks, retry and refund policy, QC pipeline, session order ledger, downloads, tests, CI, deployment, and demo capture workflow. CI activation awaits the owner permission described above.
+Built in October 2026: the Studio interface, package quoting, guarded agent tool orchestration, PayPal create/get/capture/refund adapters, JavaScript SDK checkout integration, verified webhooks, retry and refund policy, QC pipeline, session order ledger, downloads, tests, CI, deployment, and demo capture workflow. Continuous integration is configured in `.github/workflows/ci.yml`.
 
 Reused our own MIT-licensed `commerce-content-engine/src/core.js` as `lib/content-core.js` for input normalization, model prompts, provider calls, bundle parsing, and Markdown formatting. The rest of the application is new. UI illustrations are original CSS/SVG; no scraped product content, third-party logos, or copyrighted demo media are included. Runtime dependencies are listed in `package.json`.
 

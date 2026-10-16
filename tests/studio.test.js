@@ -783,3 +783,14 @@ test("provider failure visibly falls back to fixtures for simulated orders", asy
   assert.equal(delivered.aiMode, "demo");
   assert.match(delivered.aiNotice, /deterministic demo fixtures/);
 });
+
+
+test("QC treats FAQ questions as questions while still rejecting invented numbers and materials", async () => {
+  const delivered = await fulfillOrder((await paid()).id, session);
+  const bundle = structuredClone(delivered.bundle);
+  bundle.pdp.faq.push({ question: "What is it made from?", answer: "Stainless steel body" });
+  bundle.pdp.faq.push({ question: "What is its capacity?", answer: "500ml capacity" });
+  assert.equal(qualityCheck(bundle, input).passed, true);
+  bundle.pdp.faq.push({ question: "Does its 900ml capacity suit you?", answer: "[needs info]" });
+  assert.equal(qualityCheck(bundle, input).passed, false);
+});
