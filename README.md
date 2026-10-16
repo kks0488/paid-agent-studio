@@ -14,7 +14,7 @@ Small sellers need product pages, ads, and short video scripts. The quote → pa
 4. Generate the bundle, inspect the quality checks and tool timeline, and download the files.
 5. Start another job with the guarantee demonstration enabled. Both content attempts fail the risky-claim check and the simulated payment is refunded. Open the ledger to compare the two jobs.
 
-The hosted build starts with **simulated PayPal payments and deterministic AI fixtures** because no Sandbox or LLM credentials are available. No live API success is claimed. Demo data is private to an anonymous browser session and may disappear when the server restarts. It is a working prototype, not a production payment service.
+The hosted build uses **simulated PayPal payments and live Nebius AI**. PayPal Sandbox credentials are still unavailable, so no money moves. Provider failures in simulated orders visibly switch to deterministic fixtures; they are never reported as live success. Demo data is private to an anonymous browser session and may disappear when the server restarts. It is a working prototype, not a production payment service.
 
 ## How PayPal and AI are used
 
@@ -22,7 +22,15 @@ PayPal is central to the workflow: Orders v2 creates a server-priced checkout, t
 
 The agent exposes four narrowly scoped tools: `create_order`, `get_order`, `capture`, and `refund`. We reviewed the [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit) and [MCP resources](https://developer.paypal.com/ai-tools/get-started). This prototype uses its own validated tool layer so the model cannot choose arbitrary amounts, recipients, or refund eligibility. The workflow is orchestrated by server policy; the LLM explains the quote and creates content, rather than deciding how much money to move.
 
-With `LLM_API_KEY`, an OpenAI-compatible model generates quote explanations and structured content from the seller's facts. The default target is [Nebius Token Factory](https://github.com/nebius/nebius-physical-ai/blob/main/docs/workbench/token-factory.md) at `https://api.tokenfactory.nebius.com/v1/`. `LLM_BASE_URL` and `LLM_MODEL` also support other compatible providers. Gemini [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) can use `https://generativelanguage.googleapis.com/v1beta/openai/` with an available Gemini model. Without a key, transparent deterministic fixtures use the entered facts.
+With `LLM_API_KEY`, an OpenAI-compatible model generates quote explanations and structured content from the seller's facts. The default target is [Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart) at `https://api.tokenfactory.nebius.com/v1/`. `LLM_BASE_URL` and `LLM_MODEL` also support other compatible providers. Gemini [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) can use `https://generativelanguage.googleapis.com/v1beta/openai/` with an available Gemini model. Without a key, transparent deterministic fixtures use the entered facts.
+
+## Live mode
+
+Production uses `LLM_BASE_URL=https://api.tokenfactory.nebius.com/v1` and `LLM_MODEL=nvidia/Nemotron-3_5-Lightning`; `LLM_API_KEY` exists only in Vercel environment storage. Changing the key requires a production redeploy. No key is sent to the browser.
+
+The client disables model thinking with `chat_template_kwargs: {"enable_thinking": false}` and `/no_think`, reads final `message.content` only, strips `<think>` blocks, and requests JSON objects for content bundles. Quote calls allow 512 tokens / 20 seconds; content calls allow 5,000 tokens / 45 seconds. Tolerant JSON extraction accepts surrounding fences or prose. Empty, truncated, invalid, and timed-out responses fail safely. Orders report `quoteMode`, `aiMode`, `aiNotice`, and real provider usage in `llmUsage` so judges can distinguish live output from fixtures. Quote fallback and simulated content fallback are visible in the Studio; real paid Sandbox jobs preserve QC/refund behavior instead of delivering fixtures.
+
+PayPal payments remain simulated until the owner supplies the Sandbox keys, webhook registration, and durable storage listed below. The intentional refund demonstration always uses fixtures.
 
 ## Architecture
 
@@ -78,7 +86,7 @@ PLAYWRIGHT_MODULE=/home/pilot/workspace/hackathons/qloo/node_modules/playwright/
   BASE_URL=http://127.0.0.1:3000 npm run test:e2e
 ```
 
-Verified on `pilot`: 33 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. The same browser flow also passes against the public Vercel URL. See [`media/verification.json`](media/verification.json).
+Verified on `pilot`: 37 Node tests pass, the production build passes, and both visible simulated delivery/refund flows pass Playwright at 1920×1080, with a 390px layout check and real download. Dependency audit reports zero known vulnerabilities. The same browser flow also passes against the public Vercel URL. See [`media/verification.json`](media/verification.json).
 
 `scripts/capture.mjs` checks the successful order, exports, automatic refund, ledger, session isolation, and mobile layout. Small real-app screenshots are in `media/`; larger raw browser video is stored in `~/projects/02_업무_자동화/upwork/hackathons/paypal/capture/` and is not committed. A public YouTube video under three minutes is still an owner/shared-video-kit step; this repository does not claim to have uploaded or submitted one.
 
@@ -91,7 +99,7 @@ Verified on `pilot`: 33 Node tests pass, the production build passes, and both v
 - QC is a conservative automated screen for schema problems, unsupported numeric/product facts, and risky claims. It is not a comprehensive truth or legal certification. Sellers should review content before publishing.
 - The hosted no-key demo uses process memory: cold starts and concurrent instances may lose or disagree on orders. Durable Redis is required before accepting Sandbox transactions. Browser sessions are anonymous and have no account recovery; this prototype does not provide a merchant-wide authenticated dashboard.
 - Verified capture webhooks schedule generation after the HTTP response through Next.js `after()`. This is bounded by the function lifetime, not a durable job queue; interrupted paid jobs can be resumed from the ledger, and webhook retries can resume them.
-- Live Sandbox checkout, webhook delivery, refunds, and LLM inference require owner credentials and remain unverified until those are provided. No actual money is accepted by this prototype.
+- Live Sandbox checkout, webhook delivery, and refunds require owner credentials and remain unverified until those are provided. LLM inference uses the configured Nebius provider. No actual money is accepted by this prototype.
 
 ## What was built during the hackathon
 
@@ -99,7 +107,7 @@ Built in October 2026: the Studio interface, package quoting, guarded agent tool
 
 Reused our own MIT-licensed `commerce-content-engine/src/core.js` as `lib/content-core.js` for input normalization, model prompts, provider calls, bundle parsing, and Markdown formatting. The rest of the application is new. UI illustrations are original CSS/SVG; no scraped product content, third-party logos, or copyrighted demo media are included. Runtime dependencies are listed in `package.json`.
 
-Built with: Next.js App Router, React, Node.js, PayPal REST APIs and JavaScript SDK, optional Nebius/Gemini-compatible inference, Redis REST, Playwright, GitHub Actions, Vercel, and Gitleaks. Codex built the implementation from the owner's brief; no LLM API was used to generate content in the verified no-key app run.
+Built with: Next.js App Router, React, Node.js, PayPal REST APIs and JavaScript SDK, optional Nebius/Gemini-compatible inference, Redis REST, Playwright, GitHub Actions, Vercel, and Gitleaks. Codex built the implementation from the owner's brief. The original no-key run used fixtures; the live-mode verification is described above.
 
 The [hackathon rules](https://paypalaihackathon.devpost.com/rules) require a meaningful PayPal + AI integration, a public open-source repository, a functional demo, tools disclosure, and a public YouTube demo under three minutes. Submission deadline: November 12, 2026, 12:00 PST. No Devpost submission is performed by this repository.
 

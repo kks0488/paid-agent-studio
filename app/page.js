@@ -834,6 +834,10 @@ export default function Home() {
                       <p className="quote-explanation">
                         {order.quoteExplanation}
                       </p>
+                      <p className="quote-explanation" role="status">
+                        {order.aiNotice || (order.quoteMode === "live" ? "Live AI quote explanation · fixed server price." : "Deterministic package explanation.")}
+                        {order.status === "delivered" && (order.aiMode === "live" ? " Live AI content delivered." : " Demo fixture content delivered.")}
+                      </p>
                       {["quoted", "awaiting_payment"].includes(
                         order.status,
                       ) && (

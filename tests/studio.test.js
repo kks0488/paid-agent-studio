@@ -735,3 +735,51 @@ test("Redis REST storage uses atomic lock and rate-limit commands", async () => 
     true,
   );
 });
+
+test("Nebius client disables thinking, parses final JSON and never uses reasoning_content", async () => {
+  const { callLLM, finalContent, jsonObject } = await import("../lib/content-core.js");
+  let sent;
+  const result = await callLLM({
+    provider: "nebius", apiKey: "test-only", system: "/no_think Return JSON", user: "test", jsonMode: true, detailed: true,
+    fetchImpl: async (_url, options) => {
+      sent = JSON.parse(options.body);
+      return response({ choices: [{ message: { content: '<think>{"wrong":true}</think>Result: {"ok":true}', reasoning_content: 'private' }, finish_reason: "stop" }], usage: { total_tokens: 42 } });
+    },
+  });
+  assert.deepEqual(sent.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(sent.response_format.type, "json_object");
+  assert.deepEqual(jsonObject(result.text), { ok: true });
+  assert.equal(result.usage.total_tokens, 42);
+  assert.equal(finalContent("<think>unfinished private output"), "");
+  await assert.rejects(callLLM({ provider: "nebius", apiKey: "test-only", fetchImpl: async () => response({ choices: [{ message: { content: null, reasoning_content: "private" } }] }) }), /no text/);
+});
+
+test("LLM timeout aborts the request and redacts secrets from provider failures", async () => {
+  const { callLLM } = await import("../lib/content-core.js");
+  await assert.rejects(callLLM({ provider: "nebius", apiKey: "test-only", timeoutMs: 10, fetchImpl: (_url, options) => new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))) }), /timed out/);
+  await assert.rejects(callLLM({ provider: "nebius", apiKey: "test-only", fetchImpl: async () => { throw new Error("failed test-only"); } }), /failed \[redacted\]/);
+});
+
+test("live quote records actual model usage and retains authoritative fixed price", async () => {
+  process.env.LLM_API_KEY = "test-only";
+  mock.method(globalThis, "fetch", async () => response({ model: "nvidia/Nemotron-3_5-Lightning", choices: [{ message: { content: "<think>private</think>A practical launch package for the supplied product." }, finish_reason: "stop" }], usage: { total_tokens: 75 } }));
+  const quote = await createQuote(input, session);
+  assert.equal(quote.quoteMode, "live");
+  assert.equal(quote.amount, "39.00");
+  assert.doesNotMatch(quote.quoteExplanation, /private|think/);
+  assert.equal(quote.llmUsage[0].usage.total_tokens, 75);
+});
+
+test("provider failure visibly falls back to fixtures for simulated orders", async () => {
+  process.env.LLM_API_KEY = "test-only";
+  mock.method(globalThis, "fetch", async () => { throw new Error("unavailable"); });
+  const quote = await createQuote(input, session);
+  assert.equal(quote.quoteMode, "demo");
+  assert.match(quote.aiNotice, /Live AI quote unavailable/);
+  const checkout = await createCheckout(quote.id, session);
+  await captureOrder(quote.id, session, { paypalOrderId: checkout.id });
+  const delivered = await fulfillOrder(quote.id, session);
+  assert.equal(delivered.status, "delivered");
+  assert.equal(delivered.aiMode, "demo");
+  assert.match(delivered.aiNotice, /deterministic demo fixtures/);
+});
