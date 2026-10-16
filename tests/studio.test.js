@@ -486,7 +486,7 @@ test("known pending Sandbox refund reconciles without issuing another refund", a
   await saveOrder(order);
   const { stateRequest } = await import("../lib/fulfillment.js");
   const { jobDigest } = await import("../lib/tokens.js");
-  await stateRequest("cas", "capture:" + order.captureId, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
+  await stateRequest("cas", "job:" + order.id, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
   const pending = await fulfillOrder(order.id, session);
   assert.equal(pending.status, "refund_pending");
   assert.equal(pending.refundedAmount, "0.00");
@@ -522,7 +522,7 @@ test("known failed Sandbox refund stays failed and does not repeat refund POST",
   });
   const { stateRequest } = await import("../lib/fulfillment.js");
   const { jobDigest } = await import("../lib/tokens.js");
-  await stateRequest("cas", "capture:" + order.captureId, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
+  await stateRequest("cas", "job:" + order.id, {version: 0, value: {binding: [order.id, order.jobNonce, order.paypalOrderId, order.captureId, jobDigest(order)].join(":"), order}});
   const result = await fulfillOrder(order.id, session);
   assert.equal(result.status, "refund_failed");
   assert.equal(
@@ -865,6 +865,7 @@ test("capture binding rejects another nonce and legacy receipts cannot start gen
   const { claimFulfillment } = await import("../lib/fulfillment.js");
   await claimFulfillment(paidOrder);
   await assert.rejects(claimFulfillment({ ...paidOrder, jobNonce: "other-nonce" }), { code: "NONCE_MISMATCH" });
+  await assert.rejects(claimFulfillment({ ...paidOrder, captureId: "SECOND-CAPTURE" }), { code: "NONCE_MISMATCH" });
   const legacy = { ...paidOrder }; delete legacy.jobNonce;
   await assert.rejects(claimFulfillment(legacy), { code: "LEGACY_RECEIPT" });
 });
