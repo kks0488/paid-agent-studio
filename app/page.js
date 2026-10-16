@@ -967,7 +967,7 @@ export default function Home() {
                           </p>
                           <button
                             className="primary-button wide"
-                            onClick={() => run(async () => setOrder((await api(`/api/orders/${order.id}`)).order))}
+                            onClick={() => run("Checking saved result", async () => setOrder((await api(`/api/orders/${order.id}`)).order))}
                           >
                             Check saved result
                             <Icon name="arrow" size={17} />

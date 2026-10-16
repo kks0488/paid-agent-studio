@@ -127,7 +127,7 @@ try {
     })
     .scrollIntoViewIfNeeded();
   if (process.env.VIDEO_DIR) await new Promise(resolve => setTimeout(resolve, 2000));
-  await page.screenshot({ path: `${output}/03-delivery.png` });
+  await page.screenshot({ path: `${output}/error.png` });
   const { order: delivered } = await (
     await studioGet(`orders/${quoted.id}`)
   ).json();
@@ -279,6 +279,10 @@ async function captureSandbox(page, context, config) {
       await generator.getByLabel("Card type",{exact:true}).selectOption("Visa");
       await generator.getByLabel("Country",{exact:true}).selectOption("US");
       await generator.getByRole("button",{name:"Generate Credit Card",exact:true}).click();
+      await generator.waitForFunction(() => {
+        const text=document.querySelector('[class*="creditcardgenerator_details"]')?.innerText || "";
+        return /Card number\s+\d{16}/.test(text) && /Expiry date\s+\d{2}\/\d{4}/.test(text) && /CVC code\s+\d{3}/.test(text);
+      },null,{timeout:30000});
       const details=await generator.locator('[class*="creditcardgenerator_details"]').innerText();
       fixture={number:details.match(/Card number\s+(\d{16})/)[1],expiry:details.match(/Expiry date\s+(\d{2})\/(\d{4})/),cvv:details.match(/CVC code\s+(\d{3})/)[1]};
     } finally { await generator.close(); }
@@ -304,12 +308,10 @@ async function captureSandbox(page, context, config) {
     await page.locator("#email").fill(`sandbox-guest-${Date.now()}@example.com`);
     const accountSwitch=page.locator('input[data-testid="onboard-options-switch"]');
     if (await accountSwitch.count() && await accountSwitch.isChecked()) {
-      // PayPal visually hides the native input. Activate its real labeled switch;
-      // forcing a pointer on the hidden input can fall outside the viewport.
-      const labelId=await accountSwitch.getAttribute("aria-labelledby");
-      const label=labelId ? page.locator(`[id="${labelId}"]`) : page.locator('label[for="'+await accountSwitch.getAttribute("id")+'"]');
-      await label.click();
-      assert.equal(await accountSwitch.isChecked(),false);
+      // The native checkbox is visually hidden. Keyboard activation avoids the
+      // off-screen pointer target and still uses PayPal's actual change handler.
+      await accountSwitch.press("Space");
+      await page.waitForFunction(()=>!document.querySelector('input[data-testid="onboard-options-switch"]')?.checked,null,{timeout:5000});
     }
     const guestChoice=page.locator('label[for="onboardOptionGuest"]');
     if (await guestChoice.count()) await guestChoice.click();
@@ -380,8 +382,9 @@ async function captureSandbox(page, context, config) {
     const replayResponse = await context.request.post(`${baseURL}/api/orders/${paid.id}/fulfill`, {
       data: {}, headers: {"x-job-token": paid.jobToken}
     });
-    assert.ok(replayResponse.ok(), "Stale paid receipt must reconcile safely");
-    const replayed = (await replayResponse.json()).order;
+    const replayBody=await replayResponse.json();
+    assert.ok(replayResponse.ok(), `Stale paid receipt must reconcile safely (${replayResponse.status()}): ${replayBody.error || "unknown response"}`);
+    const replayed = replayBody.order;
     assert.equal(replayed.status, result.order.status);
     assert.deepEqual(replayed.bundle, result.order.bundle);
     assert.equal(replayed.llmUsage.length, result.order.llmUsage.length, "Replay must not invoke the model again");

@@ -900,7 +900,7 @@ test("delivery and acceptance markers block refunds even if an older status is r
 test("QC catches benefit inventions and unfinished Korean sentences seen in live drafts", async () => {
   const order = await paid();
   const delivered = await fulfillOrder(order.id, session);
-  for (const claim of ["The strap allows a customized fit.", "Hand wash only to maintain the canvas.", "Capacity for daily essentials.", "Spacious interior."]) {
+  for (const claim of ["The strap allows a customized fit.", "Adjustable strap for custom fit.", "Hand wash only to maintain the canvas.", "Capacity for daily essentials.", "Spacious interior."]) {
     const bundle = structuredClone(delivered.bundle); bundle.pdp.description[0] = claim;
     assert.equal(qualityCheck(bundle, order).passed, false);
   }
@@ -966,4 +966,26 @@ test("live corrective generation changes only rejected copy fields and preserves
   assert.equal(calls,2);
   const expected=structuredClone(original); expected.pdp.description[0]="The body is stainless steel.";
   assert.deepEqual(result.bundle,expected);
+});
+
+test("one correction failure waits for the other model requests before completing the job", async () => {
+  const seed=await paid(); const draft=(await fulfillOrder(seed.id,session)).bundle;
+  draft.pdp.description[0]="Comfortable."; draft.ads.bodies[0]="Roomy interior.";
+  const order=await paid(); const stored=await getValue("order:"+order.id);
+  stored.aiMode="live"; await saveOrder(stored); process.env.LLM_API_KEY="test-correction-key";
+  let release,started,calls=0;
+  const slow=new Promise(resolve=>{release=resolve;});
+  const waiting=new Promise(resolve=>{started=resolve;});
+  mock.method(globalThis,"fetch",async()=>{
+    calls++;
+    if(calls===1)return response({choices:[{message:{content:JSON.stringify(draft)}}]});
+    if(calls===2)throw new Error("Provider unavailable");
+    started(); await slow;
+    return response({choices:[{message:{content:JSON.stringify({text:"The body is stainless steel."})}}]});
+  });
+  const result=fulfillOrder(order.id,session);
+  await waiting; await new Promise(resolve=>setImmediate(resolve));
+  assert.equal((await getValue("order:"+order.id)).status,"generating");
+  release();
+  assert.equal((await result).status,"delivered");
 });
