@@ -1,0 +1,17 @@
+{
+  "name": "paid-agent-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An agent that scopes, sells, delivers and guarantees commerce content with PayPal.",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "node scripts/capture.mjs"
+  },
+  "dependencies": {"next": "16.4.2", "react": "19.3.1", "react-dom": "19.3.1"},
+  "engines": {"node": ">=22"},
+  "license": "MIT"
+}

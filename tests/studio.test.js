@@ -1,0 +1,737 @@
+import test, { beforeEach, afterEach, mock } from "node:test";
+import assert from "node:assert/strict";
+import {
+  createQuote,
+  createCheckout,
+  captureOrder,
+  fulfillOrder,
+  fulfillVerifiedWebhook,
+  getOrder,
+  listOrders,
+  downloadOrder,
+  getConfig,
+  qualityCheck,
+  canRefund,
+  handleWebhook,
+  PACKAGES,
+} from "../lib/studio.js";
+import {
+  getValue,
+  saveOrder,
+  resetMemoryForTests,
+  rateLimit,
+  withLock,
+} from "../lib/store.js";
+import {
+  simulatedOrder,
+  validateCapturedOrder,
+  validateRefund,
+  verifyWebhook,
+} from "../lib/paypal.js";
+
+const session = "test-session-owner-0123456789";
+const otherSession = "test-session-other-0123456789";
+const input = {
+  productName: "Daylight Carry",
+  facts:
+    "500ml capacity\nStainless steel body\nMatte clay finish\nWide opening\nHand wash only",
+  packageId: "launch",
+};
+const envKeys = [
+  "PAYPAL_CLIENT_ID",
+  "PAYPAL_CLIENT_SECRET",
+  "PAYPAL_ENV",
+  "PAYPAL_WEBHOOK_ID",
+  "LLM_API_KEY",
+  "LLM_BASE_URL",
+  "LLM_MODEL",
+  "REDIS_REST_URL",
+  "REDIS_REST_TOKEN",
+  "VERCEL",
+];
+let env;
+beforeEach(() => {
+  env = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  envKeys.forEach((key) => delete process.env[key]);
+  resetMemoryForTests();
+});
+afterEach(() => {
+  mock.restoreAll();
+  for (const key of envKeys)
+    if (env[key] === undefined) delete process.env[key];
+    else process.env[key] = env[key];
+});
+const response = (data) =>
+  new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+
+async function paid(overrides = {}) {
+  const quote = await createQuote({ ...input, ...overrides }, session);
+  const checkout = await createCheckout(quote.id, session);
+  return captureOrder(quote.id, session, { paypalOrderId: checkout.id });
+}
+
+async function sandboxOrder() {
+  const quote = await createQuote(input, session);
+  const order = await getValue("order:" + quote.id);
+  order.paymentMode = "sandbox";
+  order.status = "awaiting_payment";
+  order.paypalOrderId = "PPORDER00000000001";
+  await saveOrder(order);
+  process.env.PAYPAL_CLIENT_ID = "test-client";
+  process.env.PAYPAL_CLIENT_SECRET = "test-client-secret";
+  process.env.PAYPAL_WEBHOOK_ID = "test-webhook-id";
+  return order;
+}
+
+function mockPayPal(handler) {
+  const calls = [];
+  mock.method(globalThis, "fetch", async (url, options = {}) => {
+    const path = new URL(url).pathname;
+    if (path === "/v1/oauth2/token")
+      return response({
+        access_token: "test-access-token",
+        token_type: "Bearer",
+        expires_in: 300,
+      });
+    calls.push({ path, ...options });
+    return response(await handler(path, options));
+  });
+  return calls;
+}
+
+const webhookHeaders = {
+  "paypal-auth-algo": "SHA256withRSA",
+  "paypal-cert-url": "https://api.paypal.com/v1/notifications/certs/test",
+  "paypal-transmission-id": "test-transmission",
+  "paypal-transmission-sig": "test-signature",
+  "paypal-transmission-time": "2026-10-16T00:00:00Z",
+};
+const captureEvent = (order) => ({
+  id: "WH-TEST-CAPTURE-EVENT",
+  event_type: "PAYMENT.CAPTURE.COMPLETED",
+  resource: {
+    id: simulatedOrder(order, true).purchase_units[0].payments.captures[0].id,
+    status: "COMPLETED",
+    amount: { currency_code: order.currency, value: order.amount },
+    custom_id: order.id,
+    supplementary_data: { related_ids: { order_id: order.paypalOrderId } },
+  },
+});
+
+test("pricing is server authoritative for all packages; ignores hostile client amounts", async () => {
+  for (const [packageId, expected] of [
+    ["starter", "19.00"],
+    ["launch", "39.00"],
+    ["growth", "69.00"],
+  ]) {
+    const quote = await createQuote(
+      { ...input, packageId, amount: "0.01", currency: "EUR" },
+      session,
+    );
+    assert.equal(quote.amount, expected);
+    assert.equal(quote.currency, "USD");
+    assert.equal(quote.status, "quoted");
+    assert.equal(quote.sessionId, undefined);
+    assert.equal(quote.paymentMode, "simulated");
+  }
+  assert.deepEqual(Object.keys(PACKAGES), ["starter", "launch", "growth"]);
+});
+
+test("bounds, package, scenario and session validation reject invalid input", async () => {
+  for (const change of [
+    { facts: "tiny" },
+    { facts: "a".repeat(6001) },
+    { productName: "" },
+    { productName: "x".repeat(121) },
+    { packageId: "free" },
+    { scenario: "unknown" },
+  ])
+    await assert.rejects(
+      createQuote({ ...input, ...change }, session),
+      (error) => error.status === 400,
+    );
+  await assert.rejects(
+    createQuote(input, "bad"),
+    (error) => error.status === 401,
+  );
+});
+
+test("configuration clearly labels demo and storage modes and rejects live PayPal environment", () => {
+  assert.deepEqual(getConfig(), {
+    paymentMode: "simulated",
+    aiMode: "demo",
+    paypalClientId: null,
+    storageMode: "ephemeral-memory",
+    liveReady: false,
+  });
+  process.env.PAYPAL_ENV = "live";
+  assert.throws(getConfig, (error) => error.code === "SANDBOX_ONLY");
+  process.env.PAYPAL_ENV = "sandbox";
+  process.env.PAYPAL_CLIENT_ID = "test-client";
+  assert.throws(getConfig, (error) => error.code === "PAYPAL_CONFIGURATION");
+});
+
+test("complete simulated state machine delivers scoped package and paid downloads", async () => {
+  const quote = await createQuote(input, session);
+  await assert.rejects(
+    fulfillOrder(quote.id, session),
+    (error) => error.code === "PAYMENT_REQUIRED",
+  );
+  await assert.rejects(
+    captureOrder(quote.id, session),
+    (error) => error.code === "INVALID_STATE",
+  );
+  await assert.rejects(
+    downloadOrder(quote.id, session, "json"),
+    (error) => error.code === "NOT_DELIVERED",
+  );
+  const checkout = await createCheckout(quote.id, session);
+  assert.match(checkout.id, /^[A-Za-z0-9]{17}$/);
+  assert.equal((await getOrder(quote.id, session)).status, "awaiting_payment");
+  await assert.rejects(
+    captureOrder(quote.id, session, { paypalOrderId: "different" }),
+    (error) => error.code === "PAYMENT_MISMATCH",
+  );
+  const captured = await captureOrder(quote.id, session, {
+    paypalOrderId: checkout.id,
+  });
+  assert.equal(captured.status, "paid");
+  assert.equal(captured.capturedAmount, "39.00");
+  const delivered = await fulfillOrder(quote.id, session);
+  assert.equal(delivered.status, "delivered");
+  assert.equal(delivered.qcAttempts.length, 1);
+  assert.equal(delivered.qcAttempts[0].passed, true);
+  assert.deepEqual(Object.keys(delivered.bundle), ["pdp", "ads", "shorts"]);
+  assert.match(delivered.bundle.pdp.subheadline, /500ml/);
+  const json = await downloadOrder(quote.id, session, "json");
+  assert.deepEqual(JSON.parse(json.body), delivered.bundle);
+  assert.match(json.contentType, /application\/json/);
+  const md = await downloadOrder(quote.id, session, "markdown");
+  assert.match(md.body, /# Daylight Carry/);
+  assert.match(md.body, /## Shorts script/);
+  assert.doesNotMatch(md.body, /## Thumbnail/);
+  assert.equal((await listOrders(session)).length, 1);
+  assert.deepEqual(
+    delivered.timeline
+      .filter((t) => ["create_order", "get_order", "capture"].includes(t.tool))
+      .map((t) => t.tool),
+    ["create_order", "get_order", "capture"],
+  );
+});
+
+test("Starter contains only detail page; Growth contains all purchased sections", async () => {
+  for (const packageId of ["starter", "growth"]) {
+    const order = await paid({ packageId });
+    const delivered = await fulfillOrder(order.id, session);
+    assert.equal(delivered.status, "delivered");
+    assert.deepEqual(
+      Object.keys(delivered.bundle),
+      PACKAGES[packageId].sections,
+    );
+    const md = await downloadOrder(order.id, session);
+    assert.equal(md.body.includes("## Ad copy"), packageId === "growth");
+  }
+});
+
+test("session tenancy prevents order reads, capture, fulfillment, checkout and downloads", async () => {
+  const order = await paid();
+  for (const action of [
+    getOrder,
+    createCheckout,
+    captureOrder,
+    fulfillOrder,
+    downloadOrder,
+  ])
+    await assert.rejects(
+      action(order.id, otherSession),
+      (error) => error.status === 404,
+    );
+  assert.deepEqual(await listOrders(otherSession), []);
+});
+
+test("two failed QC attempts issue exactly one full refund and withhold bundle", async () => {
+  const order = await paid({ scenario: "guarantee" });
+  const result = await fulfillOrder(order.id, session);
+  assert.equal(result.status, "refunded");
+  assert.equal(result.refundedAmount, "39.00");
+  assert.equal(result.bundle, null);
+  assert.equal(result.qcAttempts.length, 2);
+  assert.equal(
+    result.qcAttempts.every((qc) => !qc.passed),
+    true,
+  );
+  assert.equal(result.timeline.filter((t) => t.tool === "refund").length, 1);
+  assert.match(
+    result.timeline.find((t) => t.tool === "refund").path,
+    /\/v2\/payments\/captures\/.+\/refund/,
+  );
+  assert.deepEqual(await fulfillOrder(order.id, session), result);
+  await assert.rejects(
+    downloadOrder(order.id, session),
+    (error) => error.code === "NOT_DELIVERED",
+  );
+});
+
+test("duplicate concurrent checkout, capture and fulfill operations mutate once", async () => {
+  const order = await createQuote(input, session);
+  const checkouts = await Promise.all(
+    Array.from({ length: 6 }, () => createCheckout(order.id, session)),
+  );
+  assert.equal(new Set(checkouts.map((v) => v.id)).size, 1);
+  await Promise.all(
+    Array.from({ length: 6 }, () => captureOrder(order.id, session)),
+  );
+  await Promise.all(
+    Array.from({ length: 6 }, () => fulfillOrder(order.id, session)),
+  );
+  const result = await getOrder(order.id, session);
+  for (const tool of ["create_order", "capture", "generate_bundle", "deliver"])
+    assert.equal(
+      result.timeline.filter((t) => t.tool === tool).length,
+      1,
+      tool,
+    );
+});
+
+test("concurrent guarantee requests issue a single refund", async () => {
+  const order = await paid({ scenario: "guarantee" });
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () => fulfillOrder(order.id, session)),
+  );
+  assert.equal(
+    results.every((result) => result.status === "refunded"),
+    true,
+  );
+  assert.equal(
+    results[0].timeline.filter((t) => t.tool === "refund").length,
+    1,
+  );
+});
+
+test("refund guard refuses unpaid, successful, already refunded and malformed states", () => {
+  const order = {
+    captureId: "CAPTURE",
+    amount: "39.00",
+    capturedAmount: "39.00",
+    refundedAmount: "0.00",
+    refundId: null,
+    status: "generating",
+    qcAttempts: [{ passed: false }, { passed: false }],
+  };
+  assert.equal(canRefund(order), true);
+  for (const change of [
+    { captureId: null },
+    { capturedAmount: "19.00" },
+    { refundedAmount: "39.00" },
+    { refundId: "existing" },
+    { status: "quoted" },
+    { qcAttempts: [{ passed: false }] },
+    { qcAttempts: [{ passed: true }, { passed: false }] },
+  ])
+    assert.equal(canRefund({ ...order, ...change }), false);
+});
+
+test("crash between refund pending persistence and PayPal call resumes safely", async () => {
+  const order = await paid({ scenario: "guarantee" });
+  const stored = await getValue("order:" + order.id);
+  stored.status = "refund_pending";
+  stored.qcAttempts = [
+    { attempt: 1, passed: false, issues: ["risk"] },
+    { attempt: 2, passed: false, issues: ["risk"] },
+  ];
+  await saveOrder(stored);
+  const result = await fulfillOrder(order.id, session);
+  assert.equal(result.status, "refunded");
+  assert.equal(result.timeline.filter((t) => t.tool === "refund").length, 1);
+});
+
+test("QC detects unsupported numbers, material facts, factual assertions and risky claims", () => {
+  const order = { ...input, amount: "39.00" };
+  for (const claim of [
+    "Clinically proven to cure every illness",
+    "Holds 900ml",
+    "Made from bamboo",
+    "Includes a lifetime warranty",
+  ]) {
+    const bundle = {
+      pdp: {
+        headline: input.productName,
+        subheadline: claim,
+        bullets: ["500ml capacity"],
+        description: ["Hand wash only"],
+      },
+      ads: { headlines: ["Explore"] },
+      shorts: { scenes: [{ time: "0-3s" }] },
+    };
+    assert.equal(qualityCheck(bundle, order).passed, false, claim);
+  }
+});
+
+test("capture validation rejects wrong order, currency, amount, identity, status and duplicate captures", () => {
+  const order = {
+    id: "ORDER",
+    paypalOrderId: "PPORDER",
+    amount: "39.00",
+    currency: "USD",
+  };
+  const good = simulatedOrder(order, true);
+  assert.equal(validateCapturedOrder(good, order).status, "COMPLETED");
+  for (const mutate of [
+    (data) => {
+      data.id = "OTHER";
+    },
+    (data) => {
+      data.status = "APPROVED";
+    },
+    (data) => {
+      data.purchase_units[0].custom_id = "OTHER";
+    },
+    (data) => {
+      data.purchase_units[0].amount.value = "0.01";
+    },
+    (data) => {
+      data.purchase_units[0].payments.captures[0].amount.currency_code = "EUR";
+    },
+    (data) => {
+      data.purchase_units[0].payments.captures[0].amount.value = "19.00";
+    },
+    (data) => {
+      data.purchase_units[0].payments.captures[0].status = "PENDING";
+    },
+    (data) => {
+      data.purchase_units[0].payments.captures.push(
+        data.purchase_units[0].payments.captures[0],
+      );
+    },
+  ]) {
+    const data = structuredClone(good);
+    mutate(data);
+    assert.throws(
+      () => validateCapturedOrder(data, order),
+      (error) => error.code === "PAYMENT_MISMATCH",
+    );
+  }
+});
+
+test("refund confirmation rejects partial/wrong-currency/failed responses", () => {
+  const order = { currency: "USD", capturedAmount: "39.00" };
+  for (const bad of [
+    {
+      id: "REF",
+      status: "COMPLETED",
+      amount: { value: "19.00", currency_code: "USD" },
+    },
+    {
+      id: "REF",
+      status: "COMPLETED",
+      amount: { value: "39.00", currency_code: "EUR" },
+    },
+    {
+      id: "REF",
+      status: "FAILED",
+      amount: { value: "39.00", currency_code: "USD" },
+    },
+  ])
+    assert.throws(
+      () => validateRefund(bad, order),
+      (error) => error.code === "REFUND_MISMATCH",
+    );
+});
+
+test("known pending Sandbox refund reconciles without issuing another refund", async () => {
+  const order = await sandboxOrder();
+  const captured = simulatedOrder(order, true).purchase_units[0].payments
+    .captures[0];
+  order.status = "generating";
+  order.captureId = captured.id;
+  order.capturedAmount = order.amount;
+  order.qcAttempts = [
+    { attempt: 1, passed: false, issues: ["unsupported fact"] },
+    { attempt: 2, passed: false, issues: ["unsupported fact"] },
+  ];
+  await saveOrder(order);
+  const calls = mockPayPal(async (path) => ({
+    id: "REFUND00000000001",
+    status: path.endsWith("/refund") ? "PENDING" : "COMPLETED",
+    amount: { currency_code: "USD", value: "39.00" },
+  }));
+  const pending = await fulfillOrder(order.id, session);
+  assert.equal(pending.status, "refund_pending");
+  assert.equal(pending.refundedAmount, "0.00");
+  const completed = await fulfillOrder(order.id, session);
+  assert.equal(completed.status, "refunded");
+  assert.equal(completed.refundedAmount, "39.00");
+  assert.equal(
+    calls.filter(
+      (call) => call.method === "POST" && call.path.endsWith("/refund"),
+    ).length,
+    1,
+  );
+  assert.equal(
+    calls.find((call) => call.method === "POST").headers["PayPal-Request-Id"],
+    "pas-refund-" + order.id,
+  );
+});
+
+test("known failed Sandbox refund stays failed and does not repeat refund POST", async () => {
+  const order = await sandboxOrder();
+  order.status = "refund_failed";
+  order.refundId = "REFUND00000000001";
+  order.captureId = "CAPTURE00000000001";
+  order.capturedAmount = order.amount;
+  order.qcAttempts = [
+    { attempt: 1, passed: false, issues: ["unsupported fact"] },
+    { attempt: 2, passed: false, issues: ["unsupported fact"] },
+  ];
+  await saveOrder(order);
+  const calls = mockPayPal(async (path) => {
+    assert.match(path, /\/v2\/payments\/refunds\//);
+    return { id: order.refundId, status: "FAILED" };
+  });
+  const result = await fulfillOrder(order.id, session);
+  assert.equal(result.status, "refund_failed");
+  assert.equal(
+    calls.every((call) => call.method === "GET"),
+    true,
+  );
+  assert.match(result.timeline.at(-1).summary, /seller must resolve/);
+});
+
+test("verified refund webhook reconciles an existing pending refund and records replay", async () => {
+  const order = await sandboxOrder();
+  order.status = "refund_pending";
+  order.refundId = "REFUND00000000001";
+  order.captureId = "CAPTURE00000000001";
+  order.capturedAmount = order.amount;
+  await saveOrder(order);
+  mockPayPal(async (path) =>
+    path.endsWith("verify-webhook-signature")
+      ? { verification_status: "SUCCESS" }
+      : {
+          id: order.refundId,
+          status: "COMPLETED",
+          amount: { currency_code: "USD", value: "39.00" },
+        },
+  );
+  const event = {
+    id: "WH-REFUND-COMPLETED",
+    event_type: "PAYMENT.CAPTURE.REFUNDED",
+    resource: {
+      id: order.refundId,
+      status: "COMPLETED",
+      amount: { currency_code: "USD", value: "39.00" },
+    },
+  };
+  const result = await handleWebhook(webhookHeaders, event);
+  assert.equal(result.status, "refunded");
+  assert.equal((await getOrder(order.id, session)).refundedAmount, "39.00");
+  assert.equal((await handleWebhook(webhookHeaders, event)).duplicate, true);
+});
+
+test("Sandbox checkout fails closed without durable storage; forced failure scenario rejected", async () => {
+  const order = await sandboxOrder();
+  await assert.rejects(
+    createCheckout(order.id, session),
+    (error) => error.code === "SANDBOX_NOT_READY",
+  );
+  await assert.rejects(
+    createQuote({ ...input, scenario: "guarantee" }, session),
+    /only in simulated mode/,
+  );
+});
+
+test("Sandbox capture retries use stable idempotency key and validated remote details", async () => {
+  const order = await sandboxOrder();
+  const calls = mockPayPal(async (path) =>
+    path.endsWith("/capture")
+      ? simulatedOrder(order, true)
+      : simulatedOrder(order, false),
+  );
+  const result = await captureOrder(order.id, session);
+  assert.equal(result.status, "paid");
+  assert.equal(
+    calls.find((call) => call.path.endsWith("/capture")).headers[
+      "PayPal-Request-Id"
+    ],
+    "pas-capture-" + order.id,
+  );
+  await captureOrder(order.id, session);
+  assert.equal(
+    calls.filter((call) => call.path.endsWith("/capture")).length,
+    1,
+  );
+});
+
+test("Sandbox capture mismatch never unlocks delivery", async () => {
+  const order = await sandboxOrder();
+  const bad = simulatedOrder(order, true);
+  bad.purchase_units[0].payments.captures[0].amount.value = "0.01";
+  mockPayPal(async () => bad);
+  await assert.rejects(
+    captureOrder(order.id, session),
+    (error) => error.code === "PAYMENT_MISMATCH",
+  );
+  assert.equal((await getOrder(order.id, session)).status, "awaiting_payment");
+});
+
+test("webhook signature must verify remotely before any order mutation", async () => {
+  const order = await sandboxOrder();
+  const calls = mockPayPal(async (path) => {
+    assert.equal(path, "/v1/notifications/verify-webhook-signature");
+    return { verification_status: "FAILURE" };
+  });
+  await assert.rejects(
+    handleWebhook(webhookHeaders, captureEvent(order)),
+    (error) => error.code === "INVALID_WEBHOOK" && error.status === 401,
+  );
+  assert.equal((await getOrder(order.id, session)).status, "awaiting_payment");
+  assert.equal(calls.length, 1);
+  await assert.rejects(
+    verifyWebhook({}, captureEvent(order)),
+    (error) => error.code === "INVALID_WEBHOOK",
+  );
+});
+
+test("verified capture webhook independently reconciles payment; replays and concurrency are idempotent", async () => {
+  const order = await sandboxOrder();
+  const calls = mockPayPal(async (path) =>
+    path.endsWith("verify-webhook-signature")
+      ? { verification_status: "SUCCESS" }
+      : simulatedOrder(order, true),
+  );
+  const event = captureEvent(order);
+  const results = await Promise.all(
+    Array.from({ length: 4 }, () => handleWebhook(webhookHeaders, event)),
+  );
+  assert.equal(results.filter((result) => result.duplicate).length, 3);
+  const stored = await getOrder(order.id, session);
+  assert.equal(stored.status, "paid");
+  assert.equal(stored.captureId, event.resource.id);
+  assert.equal(
+    calls.filter((call) => call.path.includes("/v2/checkout/orders/")).length,
+    1,
+  );
+  await fulfillOrder(order.id, session);
+  const replay = { ...event, id: "WH-ANOTHER-SIGNED-EVENT" };
+  await handleWebhook(webhookHeaders, replay);
+  assert.equal((await getOrder(order.id, session)).status, "delivered");
+});
+
+test("a signed but mismatched capture webhook cannot mark payment confirmed", async () => {
+  const order = await sandboxOrder();
+  mockPayPal(async (path) =>
+    path.endsWith("verify-webhook-signature")
+      ? { verification_status: "SUCCESS" }
+      : simulatedOrder(order, true),
+  );
+  const event = captureEvent(order);
+  event.resource.amount.value = "1.00";
+  await assert.rejects(
+    handleWebhook(webhookHeaders, event),
+    (error) => error.code === "PAYMENT_MISMATCH",
+  );
+  assert.equal((await getOrder(order.id, session)).status, "awaiting_payment");
+});
+
+test("verified webhook server continuation fulfills paid Sandbox order without browser request", async () => {
+  const order = await sandboxOrder();
+  mockPayPal(async (path) =>
+    path.endsWith("verify-webhook-signature")
+      ? { verification_status: "SUCCESS" }
+      : simulatedOrder(order, true),
+  );
+  const result = await handleWebhook(webhookHeaders, captureEvent(order));
+  assert.equal(result.status, "paid");
+  const delivered = await fulfillVerifiedWebhook(result.orderId);
+  assert.equal(delivered.status, "delivered");
+  assert.equal(
+    delivered.timeline.find((t) => t.tool === "verify_webhook").method,
+    "POST",
+  );
+  assert.equal(
+    delivered.timeline.find((t) => t.tool === "verify_webhook").path,
+    "/v1/notifications/verify-webhook-signature",
+  );
+  assert.equal(await fulfillVerifiedWebhook(result.orderId), null);
+  const replay = await handleWebhook(webhookHeaders, captureEvent(order));
+  assert.equal(replay.duplicate, true);
+  assert.equal(replay.orderId, order.id);
+  assert.equal(replay.status, "delivered");
+});
+
+test("webhook simulation never accepts fabricated success signatures", async () => {
+  await assert.rejects(
+    handleWebhook(webhookHeaders, {
+      id: "fake",
+      event_type: "PAYMENT.CAPTURE.COMPLETED",
+    }),
+    (error) => error.code === "WEBHOOK_CONFIGURATION",
+  );
+});
+
+test("rate limiter enforces the chosen count and memory lock releases after error", async () => {
+  await rateLimit("rate-test", 2);
+  await rateLimit("rate-test", 2);
+  await assert.rejects(
+    rateLimit("rate-test", 2),
+    (error) => error.status === 429,
+  );
+  await assert.rejects(
+    withLock("release-test", () => {
+      throw new Error("expected");
+    }),
+    /expected/,
+  );
+  assert.equal(await withLock("release-test", () => 42), 42);
+});
+
+test("Redis REST storage uses atomic lock and rate-limit commands", async () => {
+  process.env.REDIS_REST_URL = "https://redis.test";
+  process.env.REDIS_REST_TOKEN = "test-redis-token";
+  const values = new Map(),
+    calls = [];
+  mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url.hostname, "redis.test");
+    const command = JSON.parse(options.body);
+    calls.push(command);
+    const [op, key, value] = command;
+    if (op === "GET") return response({ result: values.get(key) ?? null });
+    if (op === "SET") {
+      if (command.includes("NX") && values.has(key))
+        return response({ result: null });
+      values.set(key, value);
+      return response({ result: "OK" });
+    }
+    if (op === "EVAL" && key.includes("INCR")) {
+      const count = Number(values.get(command[3]) || 0) + 1;
+      values.set(command[3], count);
+      return response({ result: count });
+    }
+    if (op === "EVAL") {
+      if (values.get(command[3]) === command[4]) values.delete(command[3]);
+      return response({ result: 1 });
+    }
+    throw new Error("Unexpected Redis command");
+  });
+  const order = await createQuote(input, session);
+  assert.equal((await getOrder(order.id, session)).id, order.id);
+  assert.equal(getConfig().storageMode, "durable-redis");
+  assert.equal(
+    calls.some(
+      (command) =>
+        command[0] === "SET" &&
+        command.includes("NX") &&
+        command.includes("EX"),
+    ),
+    true,
+  );
+  assert.equal(
+    calls.some(
+      (command) => command[0] === "EVAL" && command[1].includes("EXPIRE"),
+    ),
+    true,
+  );
+});
