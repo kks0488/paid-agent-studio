@@ -855,6 +855,7 @@ test("atomic nonce claim allows one cold-instance runner and blocks interrupted 
   const results = await Promise.allSettled([claimFulfillment(paidOrder), claimFulfillment(paidOrder)]);
   assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
   resetMemoryForTests();
+  assert.equal((await withRequestOrders([paidOrder], () => getOrder(order.id,session))).status,"generating");
   await assert.rejects(withRequestOrders([paidOrder], () => fulfillOrder(order.id, session)), { code: "NONCE_USED" });
 });
 
@@ -886,4 +887,83 @@ test("QC rejects unfinished copy and exaggerated English and Korean claims", asy
     const bundle = structuredClone(delivered.bundle); bundle.pdp.subheadline = claim;
     assert.equal(qualityCheck(bundle, order).passed, false);
   }
+});
+
+test("delivery and acceptance markers block refunds even if an older status is restored", async () => {
+  const order = await paid();
+  const failed = { ...order, status: "refund_pending", qcAttempts: [{ passed:false }, { passed:false }] };
+  assert.equal(canRefund(failed), true);
+  for (const marker of ["deliveredAt", "acceptedAt"])
+    assert.equal(canRefund({ ...failed, [marker]:new Date().toISOString() }), false);
+});
+
+test("QC catches benefit inventions and unfinished Korean sentences seen in live drafts", async () => {
+  const order = await paid();
+  const delivered = await fulfillOrder(order.id, session);
+  for (const claim of ["The strap allows a customized fit.", "Hand wash only to maintain the canvas.", "Capacity for daily essentials.", "Spacious interior."]) {
+    const bundle = structuredClone(delivered.bundle); bundle.pdp.description[0] = claim;
+    assert.equal(qualityCheck(bundle, order).passed, false);
+  }
+  const korean = structuredClone(delivered.bundle);
+  korean.pdp.description = ["면 캔버스 소재", "조절 가능한 스트랩이 특징", "손세탁만 가능"];
+  const result = qualityCheck(korean, { ...order, language:"Korean" });
+  assert.ok(result.issues.filter(i => i.includes("complete Korean sentence")).length >= 3);
+  const care = structuredClone(delivered.bundle);
+  care.shorts.scenes[0].visual = "Hand being washed";
+  assert.ok(qualityCheck(care, order).issues.some(i => i.includes("Misread product care")));
+});
+
+test("stale capture receipt after accepted delivery recovers the result without recapturing", async () => {
+  const order = await sandboxOrder();
+  const calls = mockPayPal(async () => simulatedOrder(order, true));
+  const paidOrder = await captureOrder(order.id, session);
+  const stale = verifyJob(paidOrder.jobToken, session);
+  const delivered = await fulfillOrder(order.id, session);
+  await downloadOrder(order.id, session);
+  resetMemoryForTests();
+  const result = await withRequestOrders([stale], () => captureOrder(order.id, session));
+  assert.equal(result.status, "delivered");
+  assert.ok(result.acceptedAt);
+  assert.deepEqual(result.bundle, delivered.bundle);
+  assert.equal(calls.filter(c => c.path.endsWith("/capture") || c.path.endsWith("/refund")).length, 0);
+});
+
+test("a changed remote capture cannot replace the capture bound into a signed receipt", async () => {
+  const order = await sandboxOrder();
+  let changed = false;
+  const calls = mockPayPal(async () => {
+    const remote = simulatedOrder(order, true);
+    if (changed) remote.purchase_units[0].payments.captures[0].id = "ANOTHER-CAPTURE";
+    return remote;
+  });
+  const stale = verifyJob((await captureOrder(order.id, session)).jobToken, session);
+  changed = true;
+  resetMemoryForTests();
+  await assert.rejects(withRequestOrders([stale], () => fulfillOrder(order.id, session)), { code:"PAYMENT_MISMATCH" });
+  assert.equal(calls.filter(c => c.path.endsWith("/refund")).length, 0);
+});
+
+test("live corrective generation changes only rejected copy fields and preserves the approved draft", async () => {
+  const seed = await paid();
+  const original = (await fulfillOrder(seed.id, session)).bundle;
+  const order = await paid();
+  const stored = await getValue("order:"+order.id);
+  stored.aiMode = "live";
+  await saveOrder(stored);
+  process.env.LLM_API_KEY = "test-correction-key";
+  let calls=0;
+  mock.method(globalThis,"fetch",async (_url,options)=>{
+    calls++;
+    const body=JSON.parse(options.body);
+    const draft=structuredClone(original);
+    draft.pdp.description[0]="Comfortable for all-day use.";
+    if (calls===2) assert.deepEqual(body.response_format.json_schema.schema.required,["text"]);
+    return response({choices:[{message:{content:JSON.stringify(calls===1?draft:{text:"The body is stainless steel."})}}]});
+  });
+  const result=await fulfillOrder(order.id,session);
+  assert.equal(result.status,"delivered");
+  assert.equal(result.aiMode,"live");
+  assert.equal(calls,2);
+  const expected=structuredClone(original); expected.pdp.description[0]="The body is stainless steel.";
+  assert.deepEqual(result.bundle,expected);
 });

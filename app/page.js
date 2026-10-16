@@ -962,14 +962,14 @@ export default function Home() {
                         <div className="recovery-state">
                           <h3>Your project is still in the studio.</h3>
                           <p>
-                            The last request was interrupted. Resume from the
-                            saved quality checks.
+                            Check for a saved result. If work was interrupted,
+                            the seller needs to review it before any new attempt.
                           </p>
                           <button
                             className="primary-button wide"
-                            onClick={fulfill}
+                            onClick={() => run(async () => setOrder((await api(`/api/orders/${order.id}`)).order))}
                           >
-                            Resume content generation
+                            Check saved result
                             <Icon name="arrow" size={17} />
                           </button>
                         </div>

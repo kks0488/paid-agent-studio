@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "An agent that scopes, sells, delivers and guarantees commerce content with PayPal.",
+  "description": "Commerce content packages with PayPal Sandbox checkout, source checks and refunds.",
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",

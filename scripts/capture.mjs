@@ -303,7 +303,14 @@ async function captureSandbox(page, context, config) {
     await page.locator("#phone").fill("2025550123");
     await page.locator("#email").fill(`sandbox-guest-${Date.now()}@example.com`);
     const accountSwitch=page.locator('input[data-testid="onboard-options-switch"]');
-    if (await accountSwitch.count()) await accountSwitch.uncheck({force:true});
+    if (await accountSwitch.count() && await accountSwitch.isChecked()) {
+      // PayPal visually hides the native input. Activate its real labeled switch;
+      // forcing a pointer on the hidden input can fall outside the viewport.
+      const labelId=await accountSwitch.getAttribute("aria-labelledby");
+      const label=labelId ? page.locator(`[id="${labelId}"]`) : page.locator('label[for="'+await accountSwitch.getAttribute("id")+'"]');
+      await label.click();
+      assert.equal(await accountSwitch.isChecked(),false);
+    }
     const guestChoice=page.locator('label[for="onboardOptionGuest"]');
     if (await guestChoice.count()) await guestChoice.click();
     await screenshot(`0${index}-sandbox-checkout`);

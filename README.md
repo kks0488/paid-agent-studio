@@ -1,29 +1,32 @@
 # Paid Agent Studio
 
-Turn supplied product facts into English or Korean content, with PayPal Sandbox checkout and a refund after two failed content checks.
+Turn product facts into English or Korean content, with PayPal Sandbox checkout and a refund after two failed content checks.
 
 **[Try it](https://paid-agent-studio.vercel.app)** · [Source](https://github.com/kks0488/paid-agent-studio)
 
-- Choose a fixed-price package: product page, ads, short video script, and optional listing review.
-- Pay with a PayPal Sandbox buyer or Sandbox guest test card, then generate live Nebius copy.
-- Download Markdown/JSON and inspect the payment, quality-check, and refund timeline.
+- Choose a fixed-price product page, ad copy and short-video script package.
+- Pay through PayPal Sandbox, then generate and review live Nebius content.
+- Download Markdown/JSON and inspect the payment, content-check and refund timeline.
 
-Use fictional product facts. All payments are Sandbox test transactions. For guest checkout, generate a fresh card with PayPal’s [Sandbox card generator](https://developer.paypal.com/sandbox-testing/card-testing/). Never use a real card or account. If guest checkout is unavailable, use a Sandbox personal buyer. The labeled refund scenario deliberately fails both checks.
+Use fictional product facts and Sandbox test payments. Guest checkout uses PayPal’s [Sandbox card generator](https://developer.paypal.com/sandbox-testing/card-testing/); a Sandbox personal buyer is the alternative. The labeled refund scenario deliberately fails both checks.
 
 ```mermaid
 flowchart LR
   Seller --> Studio --> PayPal[PayPal Sandbox capture]
-  PayPal --> Claim[Atomic nonce claim in existing AWS DynamoDB]
+  PayPal --> Claim[One-time job claim in existing AWS DynamoDB]
   Claim --> Nebius[Live Nebius copy] --> QC[Content checks]
   QC --> Delivery[Stored bundle and downloads]
   QC --> Refund[Full Sandbox refund after two failures]
 ```
 
 Sponsor technology:
-- PayPal Orders v2 creates, retrieves and captures orders; Payments v2 retrieves captures/refunds and refunds the original capture. Server rules fix prices and refund eligibility; financial POST requests retain stable idempotency keys. Webhook signatures are verified through PayPal.
-- [Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart) supplies OpenAI-compatible structured generation. English/Korean copy uses only seller facts; no-key mode is clearly labeled deterministic demo content.
 
-Quick start (Node 22; build and browser work on pilot):
+- **PayPal Orders v2 / Payments v2:** create, retrieve and capture orders; check captures/refunds; refund the original capture. Server rules fix prices and refund eligibility. Financial requests keep stable idempotency keys. PayPal verifies webhook signatures.
+- **[Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart):** OpenAI-compatible structured generation in English/Korean. Prompts use seller facts; rejected passages are corrected without replacing the rest of the draft. Checks flag specified unsupported claims. With no LLM key, content is labeled deterministic demo mode.
+
+## Quick start
+
+Node 22. Run installs, builds and browser checks on pilot/Linux.
 
 ```sh
 npm ci
@@ -33,16 +36,16 @@ npm run build
 npm start
 ```
 
-Configure PayPal Sandbox credentials, signing secret and webhook ID, plus `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. `STATE_URL` and `STATE_SECRET` connect to the authenticated CAS endpoint in the existing Shorts QC AWS deployment (`infra/api.py`, `CommerceStateSecrets` parameter). No new account is required. Keep all credentials server-side; `.env.example` contains empty values.
+Set PayPal Sandbox credentials, webhook ID and a signing secret. `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` select the model. `STATE_URL` and `STATE_SECRET` use the authenticated CAS endpoint in our existing Shorts QC AWS stack (`CommerceStateSecrets` parameter). Keep secrets server-side; `.env.example` has empty credential values.
 
-Each job has a one-time nonce bound to the signed specification, PayPal order and capture. An atomic server record claims generation and stores the final bundle. Old receipts recover that result, without another model call or automatic refund. Successful delivery blocks automatic refunds; downloading records acceptance. Current PayPal capture/refund state is checked before fulfillment/refund/download. Financial records do not expire. Storage outages and interrupted generation fail closed; interrupted jobs need seller review. Legacy receipts without a nonce cannot initiate work or refunds.
+Each one-time nonce is bound to the product brief, PayPal order and capture. Old receipts recover the stored result; they cannot generate again or refund completed work. Successful delivery blocks automatic refunds; downloading records acceptance. The app checks current PayPal capture/refund state before fulfillment, refunds and downloads. Financial completion records do not expire. Storage outages fail closed; interrupted generation needs seller review. Legacy receipts cannot start new work.
 
-Receipts are signed, not encrypted, and tied to the browser cookie. Keep this browser for recovery. This is a Sandbox prototype, not a live-money service. Automated copy checks cannot establish every product claim; sellers review copy before publishing.
+Receipts are signed and tied to the browser cookie. Keep that browser for recovery. This is a Sandbox prototype. Automated checks catch specified claims and unfinished sentences; sellers still review every draft before publishing.
 
-Tests cover pricing, payment identity, webhook signatures, receipts, replay after a process reset, concurrent nonce claims, acceptance, refunds and provider failures. GitHub Actions runs tests, build and secret scanning. Real screens are in `media/`; live English/Korean samples are saved outside the repo in `hackathons/paypal/samples/`. A public narrated video remains a separate owner task.
+Tests cover payment identity, prices, webhook signatures, replay after memory reset, concurrent claims, changed captures, acceptance, refunds, provider failures and observed English/Korean copy errors. GitHub Actions runs tests, build and secret scanning. Real screenshots are in `media/`; live copy and production samples are outside the repo in `hackathons/paypal/samples/`. A narrated video and Devpost submission remain owner tasks.
 
 ## What was built during the hackathon
 
-Studio UI, fixed-price packages, constrained PayPal tools, verified webhooks, live structured copy, source/claim checks, nonce-protected fulfillment, browser ledger, exports, tests, CI and deployment. The prompt/parser base reuses our own MIT commerce-content-engine code.
+Studio UI, fixed-price packages, PayPal tools/webhooks, live structured copy, source/claim checks, durable fulfillment, browser ledger, exports, tests, CI and deployment. The prompt/parser base reuses our own MIT commerce-content-engine code.
 
 [MIT](LICENSE) · Copyright (c) 2026 Kyoungsoo Kim.
