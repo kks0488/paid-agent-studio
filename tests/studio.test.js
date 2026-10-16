@@ -906,11 +906,20 @@ test("QC catches benefit inventions and unfinished Korean sentences seen in live
   }
   const korean = structuredClone(delivered.bundle);
   korean.pdp.description = ["면 캔버스 소재", "조절 가능한 스트랩이 특징", "손세탁만 가능"];
-  const result = qualityCheck(korean, { ...order, language:"Korean" });
+  const result = qualityCheck(korean, { ...order, language:"Korean", aiMode:"live" });
   assert.ok(result.issues.filter(i => i.includes("complete Korean sentence")).length >= 3);
   const care = structuredClone(delivered.bundle);
   care.shorts.scenes[0].visual = "Hand being washed";
   assert.ok(qualityCheck(care, order).issues.some(i => i.includes("Misread product care")));
+});
+
+test("Korean no-key demo still delivers clearly labeled source-fact fixtures", async () => {
+  const order=await paid({language:"Korean",facts:"면 캔버스; 안쪽 주머니; 샌드 색상; 손세탁만 가능"});
+  const result=await fulfillOrder(order.id,session);
+  assert.equal(result.aiMode,"demo");
+  assert.equal(result.status,"delivered");
+  assert.equal(result.llmUsage.length,0);
+  assert.ok(result.bundle.pdp.description.includes("면 캔버스"));
 });
 
 test("stale capture receipt after accepted delivery recovers the result without recapturing", async () => {

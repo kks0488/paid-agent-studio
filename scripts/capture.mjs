@@ -127,7 +127,7 @@ try {
     })
     .scrollIntoViewIfNeeded();
   if (process.env.VIDEO_DIR) await new Promise(resolve => setTimeout(resolve, 2000));
-  await page.screenshot({ path: `${output}/error.png` });
+  await page.screenshot({ path: `${output}/03-delivery.png` });
   const { order: delivered } = await (
     await studioGet(`orders/${quoted.id}`)
   ).json();
@@ -252,7 +252,7 @@ try {
   await chmod("/tmp/paypal-live-state.json",0o600);
   const ordersResponse = await studioGet("orders");
   const orders = ordersResponse.ok() ? (await ordersResponse.json()).orders : [];
-  await page.screenshot({ path: `${output}/03-delivery.png` });
+  await page.screenshot({ path: `${output}/error.png` });
   await writeFile(`${output}/verification.json`, JSON.stringify({ testedAt: new Date().toISOString(), productionUrl: baseURL, passed: false, error: error.message, orders: orders.map(order => ({ status: order.status, quoteMode: order.quoteMode, aiMode: order.aiMode, aiNotice: order.aiNotice, qcAttempts: order.qcAttempts, llmUsage: order.llmUsage })) }, null, 2) + "\n");
   console.log(JSON.stringify({ failed: true, orders: orders.map(order => ({ status: order.status, aiMode: order.aiMode, quoteMode: order.quoteMode, qcAttempts: order.qcAttempts, llmUsage: order.llmUsage })) }));
   throw error;
