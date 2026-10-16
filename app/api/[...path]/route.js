@@ -1,5 +1,8 @@
+import { verifyJob } from "../../../lib/tokens.js";
+import { withRequestOrders } from "../../../lib/store.js";
 import {
   getConfig,
+  refreshPaymentEvents,
   createQuote,
   listOrders,
   getOrder,
@@ -22,11 +25,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-async function handle(request, context) {
+async function handleInner(request, context, auth) {
   const { path } = await context.params;
-  const auth = session(request);
   try {
-    const webhook = path.join("/") === "webhooks/paypal";
+    const webhook = ["webhooks/paypal", "paypal/webhook"].includes(path.join("/"));
     await guard(request, webhook ? null : auth, webhook);
     if (webhook && request.method === "POST") {
       const result = await handleWebhook(
@@ -41,6 +43,16 @@ async function handle(request, context) {
     }
     if (path.join("/") === "config" && request.method === "GET")
       return response(request, auth, getConfig());
+    if (path.join("/") === "ledger" && request.method === "POST") {
+      const body = await readBody(request, 1800000);
+      if (!Array.isArray(body.tokens) || body.tokens.length > 20) throw new HttpError(400, "Use at most 20 signed jobs.");
+      const jobs = [];
+      for (const token of body.tokens) {
+        try { jobs.push(verifyJob(token, auth.id)); }
+        catch (error) { if (error.code !== "INVALID_JOB_TOKEN") throw error; }
+      }
+      return withRequestOrders(jobs, async () => response(request, auth, { orders: await listOrders(auth.id) }));
+    }
     if (path[0] !== "orders") throw new HttpError(404, "Page not found.");
     if (path.length === 1) {
       if (request.method === "GET")
@@ -66,6 +78,8 @@ async function handle(request, context) {
         return response(request, auth, {
           order: await captureOrder(id, auth.id, body),
         });
+      if (path[2] === "events")
+        return response(request, auth, { order: await refreshPaymentEvents(id, auth.id) });
       if (path[2] === "fulfill")
         return response(request, auth, {
           order: await fulfillOrder(id, auth.id),
@@ -106,6 +120,18 @@ async function handle(request, context) {
       },
       status,
     );
+  }
+}
+async function handle(request, context) {
+  const auth = session(request);
+  const token = request.headers.get("x-job-token");
+  try {
+    const jobs = token ? [verifyJob(token, auth.id)] : [];
+    // Demo mode retains optional process-memory convenience. Sandbox never relies on it.
+    if (process.env.PAYPAL_CLIENT_ID || token) return await withRequestOrders(jobs, () => handleInner(request, context, auth));
+    return await handleInner(request, context, auth);
+  } catch (error) {
+    return response(request, auth, { error: error.message || "Invalid signed job." }, error.status || 400);
   }
 }
 export const GET = handle;

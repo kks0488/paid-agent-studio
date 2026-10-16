@@ -221,28 +221,44 @@ function ToteArt() {
   );
 }
 
+const RECEIPTS = "paid-agent-studio-receipts-v2";
+function savedJobs() {
+  try { return JSON.parse(localStorage.getItem(RECEIPTS) || "[]"); } catch { return []; }
+}
+function remember(order) {
+  if (!order?.jobToken) return;
+  const jobs = [order, ...savedJobs().filter(job => job.id !== order.id)].slice(0,20);
+  localStorage.setItem(RECEIPTS, JSON.stringify(jobs));
+}
 async function api(path, options = {}) {
+  const id = path.match(/\/orders\/([^/?]+)/)?.[1];
+  const token = id && savedJobs().find(job => job.id === id)?.jobToken;
   const response = await fetch(path, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", ...(token ? { "x-job-token": token } : {}), ...options.headers },
     cache: "no-store",
   });
   let result;
-  try {
-    result = await response.json();
-  } catch {
-    throw new Error(
-      "The studio could not read the server response. Please try again.",
-    );
-  }
-  if (!response.ok)
-    throw new Error(
-      result.error?.message ||
-        result.error ||
-        result.message ||
-        "Something went wrong. Please try again.",
-    );
+  try { result = await response.json(); }
+  catch { throw new Error("The studio could not read the server response. Please try again."); }
+  if (!response.ok) throw new Error(result.error?.message || result.error || "Please try again.");
+  if (result.order) remember(result.order);
+  for (const order of result.orders || []) remember(order);
   return result;
+}
+async function ledger() {
+  const tokens = savedJobs().map(job => job.jobToken);
+  if (!tokens.length) return { orders: [] };
+  const result = await api("/api/ledger", { method: "POST", body: JSON.stringify({ tokens }) });
+  localStorage.setItem(RECEIPTS, JSON.stringify(result.orders || []));
+  return result;
+}
+async function downloadFile(order, format) {
+  const response = await fetch(`/api/orders/${order.id}/download?format=${format}`, { headers: { "x-job-token": order.jobToken } });
+  if (!response.ok) throw new Error("Download could not be verified. Refresh the ledger and retry.");
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a"); link.href = url; link.download = `paid-agent-${order.id}.${format === "json" ? "json" : "md"}`; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function PayPalButtons({ clientId, createOrder, approve, onError }) {
@@ -399,14 +415,24 @@ export default function Home() {
   const activePackage = PACKAGES.find((p) => p.id === order?.packageId);
   const simulated = config?.paymentMode !== "sandbox";
   async function refreshOrders() {
-    const data = await api("/api/orders");
+    const data = await ledger();
     setOrders(data.orders || []);
   }
   useEffect(() => {
-    Promise.all([api("/api/config"), api("/api/orders")])
+    Promise.all([api("/api/config").then(settings => { setConfig(settings); return settings; }), ledger()])
       .then(([settings, data]) => {
         setConfig(settings);
         setOrders(data.orders || []);
+        const query = new URLSearchParams(window.location.search);
+        const returning = data.orders?.find(job => job.id === query.get("checkout"));
+        if (returning && query.get("token")) {
+          setOrder(returning);
+          run("Confirming Sandbox checkout", async () => {
+            const paid = await api(`/api/orders/${returning.id}/capture`, {method: "POST", body: JSON.stringify({paypalOrderId: query.get("token")})});
+            await updateOrder(paid.order);
+            history.replaceState({}, "", "/");
+          });
+        }
       })
       .catch((err) => setError(err.message));
   }, []);
@@ -455,8 +481,7 @@ export default function Home() {
       method: "POST",
       body: "{}",
     });
-    const refreshed = await api(`/api/orders/${order.id}`);
-    await updateOrder(refreshed.order);
+    await updateOrder(data.order);
     return data.id;
   }
   async function capture(paypalOrderId, autoFulfill = false) {
@@ -737,7 +762,7 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-                    {simulated && (
+                    {(
                       <label className="test-toggle">
                         <input
                           type="checkbox"
@@ -747,9 +772,9 @@ export default function Home() {
                         <span className="toggle-track" />
                         <span>
                           Try the refund guarantee{" "}
-                          <small>Simulate two failed checks</small>
+                          <small>{simulated ? "Two failed checks · simulated refund" : "Two failed checks · full Sandbox refund"}</small>
                         </span>
-                        <span className="test-label">DEMO</span>
+                        <span className="test-label">TEST</span>
                       </label>
                     )}
                     <div className="brief-footer">
@@ -851,7 +876,7 @@ export default function Home() {
                           </div>
                           {!simulated && !config?.liveReady && (
                             <p className="setup-note" role="status">
-                              Sandbox checkout needs durable storage and a
+                              Sandbox checkout needs signed job tokens and a
                               verified PayPal webhook. The workspace owner must
                               finish this setup before accepting a test payment.
                             </p>
@@ -904,6 +929,7 @@ export default function Home() {
                                   <Icon name="arrow" size={17} />
                                 </button>
                               ) : (
+                                <>
                                 <PayPalButtons
                                   clientId={config.paypalClientId}
                                   createOrder={createCheckout}
@@ -915,6 +941,15 @@ export default function Home() {
                                     )
                                   }
                                 />
+                                <button className="secondary-button wide" disabled={!!busy} onClick={() => run("Opening Sandbox guest checkout", async () => {
+                                  const checkout = await api(`/api/orders/${order.id}/checkout`, {method: "POST", body: "{}"});
+                                  if (!checkout.approvalUrl || new URL(checkout.approvalUrl).hostname !== "www.sandbox.paypal.com") throw new Error("Sandbox checkout URL unavailable.");
+                                  window.location.assign(checkout.approvalUrl);
+                                })}>
+                                  Sandbox guest card checkout
+                                </button>
+                                <small>Use PayPal's Sandbox test card. No real money moves.</small>
+                                </>
                               )}
                             </div>
                           )}
@@ -1011,14 +1046,16 @@ export default function Home() {
                             <span>Yours to make your own.</span>
                             <a
                               className="secondary-button"
-                              href={`/api/orders/${order.id}/download?format=markdown`}
+                              href="#"
+                              onClick={(event) => { event.preventDefault(); run("Preparing download", () => downloadFile(order, "markdown")); }}
                               download
                             >
                               <Icon name="download" size={15} /> Markdown
                             </a>
                             <a
                               className="secondary-button"
-                              href={`/api/orders/${order.id}/download?format=json`}
+                              href="#"
+                              onClick={(event) => { event.preventDefault(); run("Preparing download", () => downloadFile(order, "json")); }}
                               download
                             >
                               <Icon name="code" size={15} /> JSON

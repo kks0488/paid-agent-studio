@@ -21,7 +21,9 @@ import {
   resetMemoryForTests,
   rateLimit,
   withLock,
+  withRequestOrders,
 } from "../lib/store.js";
+import { signJob, verifyJob } from "../lib/tokens.js";
 import {
   simulatedOrder,
   validateCapturedOrder,
@@ -41,12 +43,12 @@ const envKeys = [
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
   "PAYPAL_ENV",
+  "PAYPAL_BASE_URL",
   "PAYPAL_WEBHOOK_ID",
+  "APP_SIGNING_SECRET",
   "LLM_API_KEY",
   "LLM_BASE_URL",
   "LLM_MODEL",
-  "REDIS_REST_URL",
-  "REDIS_REST_TOKEN",
   "VERCEL",
 ];
 let env;
@@ -82,6 +84,8 @@ async function sandboxOrder() {
   await saveOrder(order);
   process.env.PAYPAL_CLIENT_ID = "test-client";
   process.env.PAYPAL_CLIENT_SECRET = "test-client-secret";
+  process.env.PAYPAL_ENV = "sandbox";
+  process.env.APP_SIGNING_SECRET = "test-persistent-sandbox-signing-key";
   process.env.PAYPAL_WEBHOOK_ID = "test-webhook-id";
   return order;
 }
@@ -164,12 +168,15 @@ test("configuration clearly labels demo and storage modes and rejects live PayPa
     paymentMode: "simulated",
     aiMode: "demo",
     paypalClientId: null,
-    storageMode: "ephemeral-memory",
+    storageMode: "paypal-signed-receipts",
     liveReady: false,
   });
   process.env.PAYPAL_ENV = "live";
   assert.throws(getConfig, (error) => error.code === "SANDBOX_ONLY");
   process.env.PAYPAL_ENV = "sandbox";
+  process.env.PAYPAL_BASE_URL = "https://api-m.paypal.com";
+  assert.throws(getConfig, (error) => error.code === "SANDBOX_ONLY");
+  delete process.env.PAYPAL_BASE_URL;
   process.env.PAYPAL_CLIENT_ID = "test-client";
   assert.throws(getConfig, (error) => error.code === "PAYPAL_CONFIGURATION");
 });
@@ -531,16 +538,18 @@ test("verified refund webhook reconciles an existing pending refund and records 
   assert.equal((await handleWebhook(webhookHeaders, event)).duplicate, true);
 });
 
-test("Sandbox checkout fails closed without durable storage; forced failure scenario rejected", async () => {
+test("Sandbox checkout requires signing secret; Sandbox guarantee test is allowed", async () => {
   const order = await sandboxOrder();
+  delete process.env.APP_SIGNING_SECRET;
   await assert.rejects(
     createCheckout(order.id, session),
     (error) => error.code === "SANDBOX_NOT_READY",
   );
-  await assert.rejects(
-    createQuote({ ...input, scenario: "guarantee" }, session),
-    /only in simulated mode/,
-  );
+  process.env.APP_SIGNING_SECRET = "test-persistent-sandbox-signing-key";
+  const quote = await createQuote({ ...input, scenario: "guarantee" }, session);
+  assert.equal(quote.paymentMode, "sandbox");
+  assert.equal(quote.scenario, "guarantee");
+  assert.equal(getConfig().liveReady, true);
 });
 
 test("Sandbox capture retries use stable idempotency key and validated remote details", async () => {
@@ -688,52 +697,33 @@ test("rate limiter enforces the chosen count and memory lock releases after erro
   assert.equal(await withLock("release-test", () => 42), 42);
 });
 
-test("Redis REST storage uses atomic lock and rate-limit commands", async () => {
-  process.env.REDIS_REST_URL = "https://redis.test";
-  process.env.REDIS_REST_TOKEN = "test-redis-token";
-  const values = new Map(),
-    calls = [];
-  mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(url.hostname, "redis.test");
-    const command = JSON.parse(options.body);
-    calls.push(command);
-    const [op, key, value] = command;
-    if (op === "GET") return response({ result: values.get(key) ?? null });
-    if (op === "SET") {
-      if (command.includes("NX") && values.has(key))
-        return response({ result: null });
-      values.set(key, value);
-      return response({ result: "OK" });
-    }
-    if (op === "EVAL" && key.includes("INCR")) {
-      const count = Number(values.get(command[3]) || 0) + 1;
-      values.set(command[3], count);
-      return response({ result: count });
-    }
-    if (op === "EVAL") {
-      if (values.get(command[3]) === command[4]) values.delete(command[3]);
-      return response({ result: 1 });
-    }
-    throw new Error("Unexpected Redis command");
-  });
-  const order = await createQuote(input, session);
-  assert.equal((await getOrder(order.id, session)).id, order.id);
-  assert.equal(getConfig().storageMode, "durable-redis");
-  assert.equal(
-    calls.some(
-      (command) =>
-        command[0] === "SET" &&
-        command.includes("NX") &&
-        command.includes("EX"),
-    ),
-    true,
-  );
-  assert.equal(
-    calls.some(
-      (command) => command[0] === "EVAL" && command[1].includes("EXPIRE"),
-    ),
-    true,
-  );
+test("signed receipts recover after memory reset and request orders stay isolated", async () => {
+  const paidOrder = await paid();
+  const delivered = await fulfillOrder(paidOrder.id, session);
+  const receipt = await getValue("order:" + delivered.id);
+  const token = signJob(receipt);
+  resetMemoryForTests();
+  assert.equal(await getValue("order:" + receipt.id), null);
+  const recovered = verifyJob(token, session);
+  await Promise.all([
+    withRequestOrders([recovered], async () => {
+      assert.equal((await getOrder(receipt.id, session)).status, "delivered");
+      assert.deepEqual(JSON.parse((await downloadOrder(receipt.id, session, "json")).body), delivered.bundle);
+      const changed = { ...recovered, status: "refunded" };
+      await saveOrder(changed);
+      assert.equal((await getValue("order:" + receipt.id)).status, "refunded");
+    }),
+    withRequestOrders([recovered], async () => {
+      await Promise.resolve();
+      assert.equal((await getValue("order:" + receipt.id)).status, "delivered");
+    }),
+    withRequestOrders([], async () => {
+      assert.equal(await getValue("order:" + receipt.id), null);
+      await assert.rejects(getOrder(receipt.id, session), (error) => error.status === 404);
+    }),
+  ]);
+  assert.equal(await getValue("order:" + receipt.id), null);
+  assert.equal(getConfig().storageMode, "paypal-signed-receipts");
 });
 
 test("Nebius client disables thinking, parses final JSON and never uses reasoning_content", async () => {
@@ -793,4 +783,23 @@ test("QC treats FAQ questions as questions while still rejecting invented number
   assert.equal(qualityCheck(bundle, input).passed, true);
   bundle.pdp.faq.push({ question: "Does its 900ml capacity suit you?", answer: "[needs info]" });
   assert.equal(qualityCheck(bundle, input).passed, false);
+});
+
+
+test("live content requests enforce the purchased JSON schema and required array sizes", async () => {
+  const {callLLM,bundleResponseSchema}=await import("../lib/content-core.js");
+  const schema=bundleResponseSchema(["pdp","ads","shorts"]);
+  assert.deepEqual(schema.required,["pdp","ads","shorts"]);
+  assert.equal(schema.additionalProperties,false);
+  assert.equal(schema.properties.pdp.properties.faq.minItems,3);
+  assert.equal(schema.properties.ads.properties.headlines.minItems,3);
+  assert.equal(schema.properties.shorts.properties.scenes.minItems,4);
+  let body;
+  await callLLM({provider:"nebius",apiKey:"test-only",jsonSchema:schema,fetchImpl:async (_url,options)=>{
+    body=JSON.parse(options.body);
+    return response({choices:[{message:{content:'{"ok":true}'},finish_reason:"stop"}]});
+  }});
+  assert.equal(body.response_format.type,"json_schema");
+  assert.equal(body.response_format.json_schema.strict,true);
+  assert.deepEqual(body.response_format.json_schema.schema,schema);
 });
