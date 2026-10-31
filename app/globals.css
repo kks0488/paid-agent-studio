@@ -308,6 +308,10 @@ p {
   color: #367295;
   border-color: #d3e4ee;
 }
+.mode-badge.sandbox-disclosure {
+  font-size: 12px;
+  white-space: normal;
+}
 .topbar-note {
   font-size: 10px;
   color: #93998c;

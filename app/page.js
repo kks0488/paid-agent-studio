@@ -592,6 +592,9 @@ export default function Home() {
         <div className="sidebar-bottom">
           <div className="guarantee-mini">
             <Icon name="shield" size={24} />
+            <p>
+              <strong>PayPal Sandbox demo, no real payments.</strong>
+            </p>
             <h3>
               Good work.
               <br />
@@ -645,9 +648,8 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">
-                    <span className="tiny-spark">✳</span> YOUR LAUNCH, ON THE
-                    HOUSE TEAM
+                  <div className="mode-badge sandbox sandbox-disclosure">
+                    PayPal Sandbox demo, no real payments
                   </div>
                   <h1>
                     Your next launch,
