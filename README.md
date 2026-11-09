@@ -1,5 +1,9 @@
 # Paid Agent Studio
 
+**For judges: try the [live demo](https://paid-agent-studio.vercel.app) first (Sandbox, no real money).**<br>
+Choose a package → get a quote → use **Sandbox guest card checkout** (steps below).<br>
+Return to see content checks → download your bundle, or inspect the labeled refund scenario.
+
 Turn product facts into English or Korean content, with PayPal Sandbox checkout and a refund after two failed content checks.
 
 **[Try it](https://paid-agent-studio.vercel.app)** · [Source](https://github.com/kks0488/paid-agent-studio)
@@ -26,8 +30,11 @@ flowchart LR
   QC --> Refund[Full Sandbox refund after two failures]
 ```
 
+The **Order ledger** tab uses AG Grid Community to sort and filter this browser’s saved orders, payment totals, delivery/refund status, timestamps and content-check results. Empty browsers show clearly labeled fictional samples; buyer names and emails are excluded.
+
 Sponsor technology:
 
+- **[AG Grid Community](https://www.ag-grid.com/react-data-grid/):** interactive order, payment and refund ledger using the free React data grid; no Enterprise modules or license key.
 - **PayPal Orders v2 / Payments v2:** Sandbox orders, captures and refunds, stable idempotency keys, and verified webhook signatures.
 - **[Nebius Token Factory](https://docs.tokenfactory.nebius.com/quickstart):** live Nemotron English/Korean drafts and corrections. Still-rejected fields can use disclosed source rules, followed by another check. Missing keys select labeled demo fixtures.
 
@@ -49,7 +56,7 @@ One-time claims bind each brief, order and capture. Stored checkouts survive res
 
 Keep the same browser for recovery. Interrupted jobs need seller review. Content checks cover specified patterns; review drafts before publishing.
 
-GitHub Actions runs tests, build and secret scans. Production screenshots: `media/`. Raw results/video: `hackathons/paypal/` outside this repo. Owner: upload video and submit Devpost.
+GitHub Actions runs tests, build and secret scans. Production screenshots: `media/`. Raw results/video: `hackathons/paypal/` outside this repo. The demo video and Devpost entry have been submitted; use the live demo above to review the working Sandbox flow.
 
 ## What was built during the hackathon
 

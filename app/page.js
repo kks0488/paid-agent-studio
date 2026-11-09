@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { SAMPLE_LEDGER_ORDERS } from "../lib/ledger.js";
+
+const LedgerGrid = dynamic(() => import("./ledger-grid.js"), { ssr: false, loading: () => <p className="ledger-grid-hint">Loading order ledger…</p> });
 
 const PACKAGES = [
   {
@@ -1377,80 +1381,17 @@ export default function Home() {
                     {error}
                   </p>
                 )}
-                {orders.length ? (
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>PROJECT / ORDER</th>
-                          <th>PACKAGE</th>
-                          <th>STATUS</th>
-                          <th>CAPTURED</th>
-                          <th>REFUNDED</th>
-                          <th aria-label="View order" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {orders.map((o) => (
-                          <tr key={o.id}>
-                            <td>
-                              <strong>{o.productName}</strong>
-                              <span className="mono">{o.id}</span>
-                            </td>
-                            <td className="capitalize">
-                              {o.packageId}
-                              <small>{money(o.amount)}</small>
-                            </td>
-                            <td>
-                              <span className={`status-pill ${o.status}`}>
-                                {statusText(o.status)}
-                              </span>
-                            </td>
-                            <td>{money(o.capturedAmount)}</td>
-                            <td>{money(o.refundedAmount)}</td>
-                            <td>
-                              <button
-                                className="table-open"
-                                aria-label={`Open ${o.productName}`}
-                                onClick={() => {
-                                  setOrder(o);
-                                  setCheckout(false);
-                                  setTab("pdp");
-                                  setView("studio");
-                                  setTimeout(
-                                    () =>
-                                      resultRef.current?.scrollIntoView({
-                                        behavior: "smooth",
-                                        block: "start",
-                                      }),
-                                    100,
-                                  );
-                                }}
-                              >
-                                <Icon name="arrow" size={18} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <Icon name="ledger" size={34} />
-                    <h3>Your next launch starts the story.</h3>
-                    <p>
-                      Create your first quote to see the full order trail here.
-                    </p>
-                    <button
-                      className="primary-button"
-                      onClick={() => setView("studio")}
-                    >
-                      Start a project
-                      <Icon name="arrow" size={16} />
-                    </button>
-                  </div>
-                )}
+                <LedgerGrid
+                  orders={orders.length ? orders : SAMPLE_LEDGER_ORDERS}
+                  sample={!orders.length}
+                  onOpen={(selected) => {
+                    setOrder(selected);
+                    setCheckout(false);
+                    setTab("pdp");
+                    setView("studio");
+                    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                  }}
+                />
               </section>
               <div className="ledger-disclaimer">
                 <Icon name="info" size={16} />
