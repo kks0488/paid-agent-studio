@@ -39,8 +39,8 @@ export default function LedgerGrid({ orders, sample, onOpen }) {
   return (
     <div className="ledger-grid-section">
       <div className="ledger-grid-tools">
-        <p>{sample ? <><strong className="ledger-sample-label">Sample · 견본</strong> Fictional orders. Create a quote to see your own order trail.</>
-          : "Your saved orders · refreshed from this browser’s receipts"}</p>
+        <p>{sample ? <><strong className="ledger-sample-label">Sample data</strong> Fictional orders. Create a quote to see your own order trail.</>
+          : "Your saved orders, refreshed from this browser’s receipts"}</p>
         <label>Search orders<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Product, status, order…" /></label>
       </div>
       <p className="ledger-grid-hint">Sort any column or use its filter. Scroll sideways for payment totals, time and content checks.</p>
@@ -48,7 +48,7 @@ export default function LedgerGrid({ orders, sample, onOpen }) {
         <AgGridProvider modules={modules}>
           <AgGridReact theme={theme} rowData={rows} columnDefs={columnDefs} defaultColDef={defaults}
             quickFilterText={search} getRowId={({ data }) => data.rowKey} pagination paginationPageSize={10}
-            paginationPageSizeSelector={false} suppressCellFocus={false} />
+            paginationPageSizeSelector={false} suppressCellFocus={false} animateRows={false} />
         </AgGridProvider>
       </div>
     </div>

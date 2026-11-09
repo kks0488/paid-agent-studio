@@ -1393,6 +1393,9 @@ export default function Home() {
                   }}
                 />
               </section>
+              <p className="ledger-license">
+                Table built with <a href="https://www.ag-grid.com/" target="_blank" rel="noopener noreferrer">AG Grid Community</a> (MIT license)
+              </p>
               <div className="ledger-disclaimer">
                 <Icon name="info" size={16} />
                 {simulated

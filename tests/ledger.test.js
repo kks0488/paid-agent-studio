@@ -12,7 +12,7 @@ test("ledger display projects stored order state without private data or full ID
   assert.equal(row.captured, 39);
   assert.equal(row.timestamp, order.timeline[0].at);
   assert.equal(row.status, "Delivered");
-  assert.equal(row.quality, "Passed · 2 checks");
+  assert.equal(row.quality, "Passed, 2 checks");
   for (const secret of [order.id, order.jobToken, order.email, order.buyer.name]) assert.ok(!JSON.stringify(row).includes(secret));
   assert.equal(order.jobToken, "private-receipt", "projection must not mutate receipts");
 });
@@ -22,7 +22,7 @@ test("pending or failed refunds and failed checks remain distinct from completed
   const rows = ledgerRows([base, { ...base, status: "refund_pending", refundedAmount: "0.00" }, { ...base, status: "refund_failed", refundedAmount: "0.00" }]);
   assert.deepEqual(rows.map(row => row.status), ["Refunded", "Refund pending", "Refund needs attention"]);
   assert.deepEqual(rows.map(row => row.refunded), [19, 0, 0]);
-  assert.equal(rows[0].quality, "Failed · 2 checks");
+  assert.equal(rows[0].quality, "Failed, 2 checks");
   assert.equal(qualityResult(), "Not checked");
 });
 
