@@ -28,6 +28,14 @@ page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()
 try{
  await page.goto('http://127.0.0.1:3149');await page.getByRole('button',{name:/Order ledger/}).click();await page.getByRole('grid').waitFor();
  await page.getByText('Sample data',{exact:true}).waitFor();
+ // One conditional-copy check spans both sample and saved-order states.
+ const sampleTotals=page.getByText('Totals above count only your own orders in this browser. The rows below are sample data.',{exact:true});
+ assert.equal(await sampleTotals.isVisible(),true);
+ const sampleTotalsStyle=await sampleTotals.evaluate(element=>{
+  const style=getComputedStyle(element),rect=element.getBoundingClientRect();
+  return {style:[style.fontSize,style.color,style.textAlign,style.marginTop,style.marginBottom],betweenCardsAndTable:element.previousElementSibling.matches('.metrics-grid')&&element.nextElementSibling.matches('.ledger-panel')&&rect.top>=element.previousElementSibling.getBoundingClientRect().bottom&&rect.bottom<=element.nextElementSibling.getBoundingClientRect().top};
+ });
+ assert.deepEqual(sampleTotalsStyle.style,['13px','rgb(92, 99, 89)','left','8px','8px']);assert.equal(sampleTotalsStyle.betweenCardsAndTable,true);
  const rows=()=>page.locator('.ag-row');await rows().first().waitFor();assert.equal(await rows().count(),SAMPLE_LEDGER_ORDERS.length);await assertVisibleRows(SAMPLE_LEDGER_ORDERS.length,'Initial samples');await assertLedgerCopy();checks.push('Empty browser: 4 visible labeled fictional samples, no overlapping or blank rows');
  const pkg=JSON.parse(await readFile(new URL('../node_modules/ag-grid-community/package.json',import.meta.url),'utf8'));
  assert.equal(pkg.license,'MIT');
@@ -60,6 +68,7 @@ try{
  await page.getByRole('button',{name:'Continue to simulated checkout',exact:true}).click();await page.getByRole('button',{name:'Simulate $39.00 payment',exact:true}).click();
  await page.getByRole('button',{name:'Create my content bundle',exact:true}).click();await page.getByText('Quality checks passed. Your launch bundle is ready.',{exact:true}).waitFor();
  await page.getByRole('button',{name:/Order ledger/}).click();await page.getByRole('grid').waitFor();await cells('status').filter({hasText:'Delivered'}).waitFor();await assertVisibleRows(1,'Saved order');await assertLedgerCopy();await page.getByText('Your saved orders, refreshed from this browser’s receipts',{exact:true}).waitFor();assert.equal(await rows().count(),1);assert.equal(await page.getByText('Sample data',{exact:true}).count(),0);assert.equal(await cells('captured').innerText(),'$39.00');assert.equal(await cells('refunded').innerText(),'$0.00');assert.match(await cells('quality').innerText(),/^Passed/);
+ assert.equal(await sampleTotals.count(),0);checks.push('Sample totals notice appears only with samples, below cards and above table, with requested style; hidden for saved orders');
  assert.equal((await cells('orderNumber').innerText()).length,8);checks.push('Actual local simulated order appears with price, capture, refund, time, checks and shortened ID');await page.screenshot({path:dir+'/ledger_actual.png',fullPage:true});
  await page.locator('.ag-body-horizontal-scroll-viewport').evaluate(element=>{element.scrollLeft=element.scrollWidth});
  await page.getByRole('button',{name:/^Open order /}).click();await page.getByText('Quality checks passed. Your launch bundle is ready.',{exact:true}).waitFor();checks.push('Open preserves existing order detail and delivery view');

@@ -1362,6 +1362,11 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              {!orders.length && (
+                <p className="ledger-sample-totals">
+                  Totals above count only your own orders in this browser. The rows below are sample data.
+                </p>
+              )}
               <section className="ledger-panel panel">
                 <div className="section-heading">
                   <div>

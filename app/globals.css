@@ -2749,6 +2749,7 @@ td > small {
 .ledger-grid .ag-cell { display: flex; align-items: center; }
 .ledger-grid .status-pill { font-size: 12px; padding: 4px 10px; font-weight: 600; line-height: 1.4; }
 .ledger-grid .ag-cell.mono { font-size: 12px; color: #5c6359; }
+.ledger-sample-totals { margin: 8px 0; font-size: 13px; color: #5c6359; text-align: left; }
 .ledger-license { margin: 12px 4px 0; font-size: 12px; color: #5c6359; }
 .status-pill.refund_pending { background: #fff0ce; color: #75520c; }
 .status-pill.refund_failed { background: #fce2de; color: #8e2d22; }
