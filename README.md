@@ -40,23 +40,23 @@ Sponsor technology:
 
 ## Quick start
 
-Node 22. Run installs, builds and browser checks on pilot/Linux.
+Node 22. Run installs, builds and browser checks on Linux.
 
 ```sh
 npm ci
 cp .env.example .env.local
-npm test
+npm test # 88 tests
 npm run build
 npm start
 ```
 
-Fill `.env.local` with Sandbox credentials, webhook ID, signing secret and `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. `STATE_URL`/`STATE_SECRET` use our existing Shorts QC AWS CAS endpoint (`CommerceStateSecrets`). Secrets stay server-side.
+Fill `.env.local` with Sandbox credentials, webhook ID, signing secret and `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. `STATE_URL`/`STATE_SECRET` connect to a durable state service with atomic compare-and-set operations. Sandbox checkout requires this service. Secrets stay server-side.
 
 One-time claims bind each brief, order and capture. Stored checkouts survive restarts; old receipts recover results without regenerating or refunding delivered work. Current PayPal state is checked before fulfillment, refunds and downloads. Completion records do not expire.
 
 Keep the same browser for recovery. Interrupted jobs need seller review. Content checks cover specified patterns; review drafts before publishing.
 
-GitHub Actions runs tests, build and secret scans. Production screenshots: `media/`. Raw results/video: `hackathons/paypal/` outside this repo. The demo video and Devpost entry have been submitted; use the live demo above to review the working Sandbox flow.
+GitHub Actions runs tests, build and secret scans. Screenshots and verification details: `media/`. The demo video and Devpost entry have been submitted; use the live demo above to review the working Sandbox flow.
 
 ## What was built during the hackathon
 

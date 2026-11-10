@@ -420,8 +420,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [checkout, setCheckout] = useState(false);
   const [tab, setTab] = useState("pdp");
-  const [chat, setChat] = useState("");
-  const [chatReply, setChatReply] = useState("");
+  const [stalledProgress, setStalledProgress] = useState(null);
   const resultRef = useRef(null);
   const selectedPackage = PACKAGES.find((p) => p.id === packageId);
   const activePackage = PACKAGES.find((p) => p.id === order?.packageId);
@@ -467,6 +466,14 @@ export default function Home() {
     }, 3000);
     return () => { stopped = true; clearInterval(timer); };
   }, [order?.id, order?.status, simulated]);
+  // Give normal webhook generation 90 seconds without new progress before
+  // offering a read-only check. A new order, status or timeline event resets it.
+  const progressKey = JSON.stringify([order?.id, order?.status, order?.timeline?.at(-1)?.at]);
+  useEffect(() => {
+    if (!order?.id || !["paid", "generating"].includes(order.status)) return;
+    const timer = setTimeout(() => setStalledProgress(progressKey), 90_000);
+    return () => clearTimeout(timer);
+  }, [progressKey]);
   async function run(label, work) {
     setBusy(label);
     setError("");
@@ -542,14 +549,6 @@ export default function Home() {
       });
       await updateOrder(data.order);
     });
-  }
-  function askAgent(event) {
-    event.preventDefault();
-    if (!chat.trim()) return;
-    setChatReply(
-      `For “${productName || "your product"}”, ${selectedPackage.name} includes ${selectedPackage.items.join(" and ").toLowerCase()} for ${money(selectedPackage.price)}. Add any new product facts to your brief below. The studio checks the draft against those facts before delivery.`,
-    );
-    setChat("");
   }
   const totalCaptured = orders.reduce(
     (n, o) => n + Number(o.capturedAmount || 0),
@@ -990,23 +989,24 @@ export default function Home() {
                           )}
                         </>
                       )}
-                      {order.status === "generating" && !busy && (
-                        <div className="recovery-state">
-                          <h3>Your project is still in the studio.</h3>
-                          <p>
-                            Check for a saved result. If work was interrupted,
-                            the seller needs to review it before any new attempt.
-                          </p>
-                          <button
-                            className="primary-button wide"
-                            onClick={() => run("Checking saved result", async () => setOrder((await api(`/api/orders/${order.id}`)).order))}
-                          >
-                            Check saved result
-                            <Icon name="arrow" size={17} />
-                          </button>
+                      {(["paid", "generating"].includes(order.status) && !simulated || order.status === "generating") && !busy && (
+                        <div className="working-state" role="status">
+                          <span className="loading-dot" />
+                          <div>
+                            <p>Payment confirmed. Drafting and fact-checking your bundle, about a minute.</p>
+                            {stalledProgress === progressKey && (
+                              <>
+                                <p>This is taking longer than usual. Check for a saved result.</p>
+                                <button className="primary-button wide"
+                                  onClick={() => run("Checking saved result", async () => updateOrder((await api(`/api/orders/${order.id}`)).order))}>
+                                  Check saved result <Icon name="arrow" size={17} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       )}
-                      {order.status === "paid" && (
+                      {order.status === "paid" && simulated && (
                         <div className="paid-state">
                           <span className="success-icon">
                             <Icon name="check" />
@@ -1162,36 +1162,6 @@ export default function Home() {
                       </div>
                     </section>
                   )}
-                  <section className="chat-panel">
-                    <span className="eyebrow">A THOUGHT BEFORE WE START?</span>
-                    {chatReply && (
-                      <p className="chat-reply" role="status">
-                        {chatReply}
-                      </p>
-                    )}
-                    <form onSubmit={askAgent}>
-                      <input
-                        aria-label="Ask the studio about your package"
-                        value={chat}
-                        onChange={(e) => setChat(e.target.value)}
-                        maxLength={1000}
-                        placeholder="Ask about your package…"
-                      />
-                      <button
-                        type="submit"
-                        aria-label="Send message"
-                        disabled={!chat.trim()}
-                      >
-                        <Icon name="arrow" size={19} />
-                      </button>
-                    </form>
-                    <small>
-                      Package guidance is deterministic.{" "}
-                      {config?.aiMode === "live"
-                        ? "Content generation uses a connected AI provider."
-                        : "Demo content uses fixtures; no AI model is called."}
-                    </small>
-                  </section>
                 </div>
                 <aside className="insight-column">
                   <section className="product-card">

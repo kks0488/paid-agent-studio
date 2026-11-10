@@ -13,7 +13,10 @@ test("ledger display projects stored order state without private data or full ID
   assert.equal(row.timestamp, order.timeline[0].at);
   assert.equal(row.status, "Delivered");
   assert.equal(row.quality, "Passed, 2 checks");
-  for (const secret of [order.id, order.jobToken, order.email, order.buyer.name]) assert.ok(!JSON.stringify(row).includes(secret));
+  assert.equal(row.rowKey, order.id, "internal grid key remains stable when orders move");
+  assert.equal(ledgerRows([SAMPLE_LEDGER_ORDERS[1], order])[1].rowKey, row.rowKey);
+  const { rowKey, ...displayed } = row;
+  for (const secret of [order.id, order.jobToken, order.email, order.buyer.name]) assert.ok(!JSON.stringify(displayed).includes(secret));
   assert.equal(order.jobToken, "private-receipt", "projection must not mutate receipts");
 });
 

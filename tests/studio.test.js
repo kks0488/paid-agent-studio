@@ -1285,3 +1285,31 @@ test("unsafe live corrections use a disclosed source rule and preserve other gen
   assert.deepEqual(result.bundle.ads, original.ads);
   assert.equal(result.timeline.filter(event => event.tool === "source_repair").length, 1);
 });
+
+test("seller-supplied certified organic facts and product-name claims pass without permitting new claims", () => {
+  const order = { productName: 'Canvas tote', facts: toteFacts + ' Certified organic cotton.', packageId: 'launch', aiMode: 'live', language: 'English' };
+  const bundle = retailCopy();
+  bundle.pdp.subheadline = 'Certified organic cotton canvas with an adjustable strap';
+  assert.equal(qualityCheck(bundle, order).passed, true);
+  bundle.pdp.headline = 'The best canvas tote';
+  assert.equal(qualityCheck(bundle, order).passed, false);
+  assert.equal(qualityCheck(bundle, { ...order, productName: 'The best canvas tote' }).passed, true);
+  bundle.pdp.headline = 'Canvas tote';
+  bundle.pdp.description[0] = 'FDA-approved cotton canvas.';
+  assert.equal(qualityCheck(bundle, order).passed, false);
+  assert.equal(qualityCheck(bundle, { ...order, facts: order.facts + ' FDA-approved cotton canvas.' }).passed, true);
+});
+
+test("ceramic mug default fixture passes while factual terms require whole words in both copy and source", async () => {
+  const order = await paid({productName:'Ceramic mug', facts:'White ceramic mug; 300 ml capacity.', packageId:'starter'});
+  const result = await fulfillOrder(order.id, session);
+  assert.equal(result.status, 'delivered');
+  assert.equal(qualityCheck(result.bundle, order).passed, true);
+  const bundle = structuredClone(result.bundle);
+  bundle.pdp.description = ['A ceramic mug for your comfort.'];
+  assert.equal(qualityCheck(bundle, {...order, facts:order.facts+' Comfortably shaped.'}).passed, false);
+  bundle.pdp.description = ['A ceramic mug, comfortably shaped.'];
+  assert.equal(qualityCheck(bundle, order).passed, true);
+  bundle.pdp.description = ['Organic ceramic mug.'];
+  assert.equal(qualityCheck(bundle, {...order, facts:order.facts+' Inorganic glaze.'}).passed, false);
+});

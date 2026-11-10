@@ -7,3 +7,4 @@ coverage/
 *.log
 media/*.webm
 media/*.mp4
+.judge-out/

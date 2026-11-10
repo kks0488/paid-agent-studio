@@ -967,60 +967,7 @@ h1 > span {
 .trust-note p > span {
   color: #a3ab96;
 }
-.chat-panel {
-  margin-top: 27px;
-  padding: 0 2px;
-}
-.chat-panel > .eyebrow {
-  font-size: 7px;
-  color: #99a189;
-  letter-spacing: 1.5px;
-}
-.chat-panel form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 11px;
-  padding: 8px 8px 8px 13px;
-  border: 1px solid #e2e7d8;
-  background: #fff;
-  border-radius: 7px;
-}
-.chat-panel input {
-  background: none;
-  border: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: 10px;
-  padding: 6px 0;
-}
-.chat-panel input::placeholder {
-  color: #b0b6a5;
-}
-.chat-panel form > button {
-  display: grid;
-  place-items: center;
-  padding: 7px;
-  border-radius: 4px;
-  background: #edf3df;
-  color: #829764;
-}
-.chat-panel > small {
-  font-size: 7px;
-  line-height: 1.7;
-  color: #9ca58e;
-  display: block;
-  margin-top: 8px;
-}
-.chat-reply {
-  font-size: 11px;
-  color: #657254;
-  line-height: 1.8;
-  padding: 14px;
-  margin: 10px 0;
-  background: #eef3e3;
-  border-radius: 7px;
-}
+
 .footer {
   border-top: 1px solid var(--line);
   margin-top: 47px;
@@ -1777,15 +1724,7 @@ td > small {
   .trust-note p {
     font-size: 9px;
   }
-  .chat-panel > .eyebrow {
-    font-size: 8px;
-  }
-  .chat-panel input {
-    font-size: 12px;
-  }
-  .chat-panel > small {
-    font-size: 9px;
-  }
+
   .footer {
     font-size: 9px;
   }
@@ -2393,18 +2332,7 @@ td > small {
     gap: 13px;
     min-height: 42px;
   }
-  .chat-panel {
-    margin-top: 24px;
-  }
-  .chat-panel input {
-    font-size: 11px;
-  }
-  .chat-panel > small {
-    font-size: 8px;
-  }
-  .chat-panel > .eyebrow {
-    font-size: 7px;
-  }
+
   .insight-column {
     display: grid;
     grid-template-columns: 1fr;
@@ -2716,8 +2644,7 @@ td > small {
   }
 }
 
-.setup-note,
-.recovery-state {
+.setup-note {
   margin-top: 18px;
   padding: 15px;
   background: #faf7e9;
@@ -2726,16 +2653,6 @@ td > small {
   font-size: 10px;
   color: #93845d;
   line-height: 1.8;
-}
-.recovery-state h3 {
-  font-size: 13px;
-  color: #71623f;
-}
-.recovery-state p {
-  margin-top: 7px;
-}
-.recovery-state > .primary-button {
-  margin-top: 13px;
 }
 
 /* Community grid follows the existing Studio palette. */

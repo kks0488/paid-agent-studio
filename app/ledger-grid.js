@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AllCommunityModule, themeQuartz } from "ag-grid-community";
 import { AgGridProvider, AgGridReact } from "ag-grid-react";
 import { ledgerRows } from "../lib/ledger.js";
@@ -29,12 +29,13 @@ const columns = [
 const defaults = { sortable: true, filter: "agTextColumnFilter", resizable: true, floatingFilter: true };
 
 export default function LedgerGrid({ orders, sample, onOpen }) {
+  const grid = useRef(null);
   const [search, setSearch] = useState("");
   const rows = useMemo(() => ledgerRows(orders), [orders]);
   const columnDefs = useMemo(() => sample ? columns : [...columns, {
-    colId: "open", headerName: "", width: 90, sortable: false, filter: false,
+    colId: "open", headerName: "", width: 90, pinned: "right", lockPinned: true, sortable: false, filter: false,
     cellRenderer: ({ data }) => <button className="text-button" aria-label={`Open order ${data.orderNumber}`}
-      onClick={() => onOpen(orders[Number(data.rowKey)])}>Open ↗</button>,
+      onClick={() => onOpen(orders.find(order => order.id === data.rowKey))}>Open ↗</button>,
   }], [orders, sample, onOpen]);
   return (
     <div className="ledger-grid-section">
@@ -42,11 +43,14 @@ export default function LedgerGrid({ orders, sample, onOpen }) {
         <p>{sample ? <><strong className="ledger-sample-label">Sample data</strong> Fictional orders. Create a quote to see your own order trail.</>
           : "Your saved orders, refreshed from this browser’s receipts"}</p>
         <label>Search orders<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Product, status, order…" /></label>
+        <button className="secondary-button" onClick={() => grid.current?.api.exportDataAsCsv({
+          fileName: "studio-orders.csv", columnKeys: columns.map(column => column.field),
+        })}>Download CSV</button>
       </div>
       <p className="ledger-grid-hint">Sort any column or use its filter. Scroll sideways for payment totals, time and content checks.</p>
       <div className="ledger-grid" aria-label="Orders, payments, deliveries and refunds">
         <AgGridProvider modules={modules}>
-          <AgGridReact theme={theme} rowData={rows} columnDefs={columnDefs} defaultColDef={defaults}
+          <AgGridReact ref={grid} theme={theme} rowData={rows} columnDefs={columnDefs} defaultColDef={defaults}
             quickFilterText={search} getRowId={({ data }) => data.rowKey} pagination paginationPageSize={10}
             paginationPageSizeSelector={false} suppressCellFocus={false} animateRows={false} />
         </AgGridProvider>
