@@ -224,7 +224,7 @@
   "historicalProductionTestedAt": "2026-10-16T10:21:03.282Z",
   "verificationScope": "Local key-free simulation and browser return-state fixtures. Existing production runs below are historical, not retested.",
   "localChecks": {
-    "command": "bash /home/kkaemo/work06/paypal_boost1109/verify_build.sh",
+    "command": "npm test && npm run build && node scripts/verify-ledger.mjs",
     "browserCommand": "node scripts/verify-judge-ready.mjs",
     "result": "passed",
     "note": "Real duplicate claim logic returns 409 NONCE_USED against the existing in-memory state double; browser return states are locally routed fixtures. No PayPal or model calls."
