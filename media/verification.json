@@ -1,12 +1,12 @@
 {
-  "testedAt": "2026-11-10T20:25:03.896906+00:00",
+  "testedAt": "2026-11-11T00:41:27.901Z",
   "productionUrl": "https://paid-agent-studio.vercel.app",
-  "paymentMode": "simulation",
-  "aiMode": "demo",
+  "paymentMode": "sandbox",
+  "aiMode": "live",
   "passed": true,
   "desktopViewport": {
-    "width": 1440,
-    "height": 1100
+    "width": 1920,
+    "height": 1080
   },
   "mobileViewport": {
     "width": 390,
@@ -198,15 +198,15 @@
   "productionBuild": "passed locally on Linux",
   "rawEvidence": "Historical production evidence retained separately; current local checks: judge_verification.json and return_before.json",
   "screenProvenance": {
-    "01-studio.png": "2026-11-11 current local key-free Studio, 1440px",
+    "01-studio.png": "2026-11-11 production Studio, 1920x1080 viewport only",
     "02-quote.png": "Original pre-payment quote, approved English round5 run1",
     "03-sandbox-checkout.png": "Actual guest checkout, round8 English run1",
     "03-delivery.png": "Approved live English round5 run1; native read-only recapture",
     "04-refund-quote.png": "Original pre-payment forced-refund quote, round8 run4",
     "04-refund.png": "Actual completed refund, round8 run4; native read-only recapture",
     "05-sandbox-checkout.png": "Actual guest checkout, round8 refund run4",
-    "05-ledger.png": "2026-11-11 current AG Grid ledger, one local simulated delivered order, copied from ledger_v3.png",
-    "06-mobile.png": "2026-11-11 current local key-free Studio, 390x844",
+    "05-ledger.png": "2026-11-11 production ledger, 1440px, newly delivered USD 39.00 Sandbox order ending 30d2b983",
+    "06-mobile.png": "2026-11-11 production Studio, 390x844 viewport",
     "07-payment-timeline.png": "Actual payment and signed webhook, approved English round5 run1",
     "08-refund-timeline.png": "Actual refund ID and signed refund webhook, round8 run4"
   },
@@ -222,11 +222,28 @@
     "Interrupted generation requires seller review"
   ],
   "historicalProductionTestedAt": "2026-10-16T10:21:03.282Z",
-  "verificationScope": "Local key-free simulation and browser return-state fixtures. Existing production runs below are historical, not retested.",
+  "verificationScope": "Production Sandbox quote, official PayPal test-card checkout, payment-return progress, live model generation, content checks, delivery and Markdown download on November 11. Existing runs below remain historical.",
   "localChecks": {
     "command": "npm test && npm run build && node scripts/verify-ledger.mjs",
     "browserCommand": "node scripts/verify-judge-ready.mjs",
     "result": "passed",
     "note": "Real duplicate claim logic returns 409 NONCE_USED against the existing in-memory state double; browser return states are locally routed fixtures. No PayPal or model calls."
+  },
+  "currentProductionVerification": {
+    "testedAt": "2026-11-11T00:41:27.901Z",
+    "commitSha": "8fee19446a59aa3c63d4e88f37256f05a47c617c",
+    "deploymentId": "dpl_7CP67AFqyu5VHZvpT6t6KSPhEERT",
+    "elapsedSeconds": 59,
+    "paymentMode": "sandbox",
+    "aiMode": "live",
+    "status": "delivered",
+    "orderSuffix": "30d2b983",
+    "amount": "39.00",
+    "qualityChecksPassed": true,
+    "download": "Markdown",
+    "paymentReturnProgressVisible": true,
+    "http409Count": 0,
+    "interruptionWarning": false,
+    "browserErrors": 0
   }
 }
